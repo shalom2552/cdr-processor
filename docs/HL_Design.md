@@ -14,3 +14,10 @@ The project is structured as follows:
 
 ### Python Simulator
 
+The simulator generates CDR records to three different destinations:
+
+1. **stdout (-p, --print)**: prints the records to the terminal
+2. **file (-f, --file)**: writes the records to a file with an header (records count)
+3. **rabbitmw (-r, --rabbit)**: sends the records to a RabbitMQ queue
+
+

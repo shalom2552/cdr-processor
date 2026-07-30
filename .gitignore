@@ -1,0 +1,8 @@
+
+# simulation files
+scripts/.seq
+records/
+
+# build artifacts
+build/
+dist/

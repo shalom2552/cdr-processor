@@ -6,11 +6,11 @@ over an API.
 
 ## RoadMap
 
-- [ ] Phase 1
-- [ ] Phase 2
-- [ ] Phase 3
-- [ ] Phase 4
-- [ ] Phase 5
-- [ ] Phase 6
-- [ ] Phase 7
-- [ ] Phase 8
+- [x] Phase 0 - Buildable repo skeleton & CI
+- [ ] Phase 1 - Core primitives, parser, config
+- [ ] Phase 2 - Stream & ingest CDR files
+- [ ] Phase 3 - Subscriber, operator & graph aggregation
+- [ ] Phase 4 - REST query gateway API
+- [ ] Phase 5 - MySQL persistence across restarts
+- [ ] Phase 6 - Distributed harvesters & clients
+- [ ] Phase 7 - Profiling, tests & deliverables
