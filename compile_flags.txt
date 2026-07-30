@@ -1,0 +1,5 @@
+-Iinc
+-Wall
+-Wextra
+-Werror
+-pedantic
