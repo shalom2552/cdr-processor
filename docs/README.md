@@ -14,3 +14,43 @@ over an API.
 - [ ] Phase 5 - MySQL persistence across restarts
 - [ ] Phase 6 - Distributed harvesters & clients
 - [ ] Phase 7 - Profiling, tests & deliverables
+
+## Build Instructions
+
+Run the simulator first to generate CDR records.
+
+### Simulator
+
+
+
+### Processor
+
+To run the processor:
+
+```bash
+make run
+```
+
+## Testing
+
+This project uses the [doctest](https://github.com/onqtam/doctest) library for testing.
+
+To run tests:
+
+```bash
+make test
+```
+
+## Configuration
+
+Using [tomlplusplus](https://github.com/marzer/tomlplusplus) library for configuration parsing.
+
+Condig file is located at project root `config.toml` and contains the following parameters:
+
+```toml
+[ingestor]
+file_path = "/path/to/cdr/files"
+batch_size = 10000
+threads = 4
+```
+
