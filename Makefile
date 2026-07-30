@@ -1,5 +1,6 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -Iinc -MMD -MP -pthread
+CXXFLAGS = -std=c++17 -Wall -Wextra -MMD -MP -pthread 
+CXXFLAGS += -Iinc -Iinc/third_party
 LDFLAGS = -pthread
 
 BUILD     = build

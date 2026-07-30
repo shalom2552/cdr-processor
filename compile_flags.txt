@@ -1,4 +1,5 @@
 -Iinc
+-Iinc/third_party
 -Wall
 -Wextra
 -Werror
