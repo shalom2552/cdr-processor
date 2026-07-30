@@ -6,7 +6,7 @@ over an API.
 
 ## RoadMap
 
-- [ ] Phase 0 - Buildable repo skeleton & CI
+- [x] Phase 0 - Buildable repo skeleton & CI
 - [ ] Phase 1 - Core primitives, parser, config
 - [ ] Phase 2 - Stream & ingest CDR files
 - [ ] Phase 3 - Subscriber, operator & graph aggregation

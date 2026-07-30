@@ -8,10 +8,10 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 0 — Skeleton
 **Goal:** buildable repo, nothing works yet.
  
-- [ ] Repo layout: `src/ include/ tests/ config/ docs/ tools/`
-- [ ] Makefile (`all`, `test`, `clean`, `debug`, `release`), C++17, `-Wall -Wextra -pedantic`
-- [ ] Unit test harness wired (doctest / gtest, header-only preferred)
-- [ ] CI: build + test on push
+- [x] Repo layout: `src/ include/ tests/ config/ docs/ tools/`
+- [x] Makefile (`all`, `test`, `clean`, `debug`, `release`), C++17, `-Wall -Wextra -pedantic`
+- [x] Unit test harness wired (doctest / gtest, header-only preferred)
+- [x] CI: build + test on push
 **Done when:** `make && make test` is green on an empty test suite.
  
 ---
