@@ -3,21 +3,17 @@
 conf = true
 
 [source]
-# mode = "file" or "rabbit"
+mode = "rabbit"         # mode = "file" or "rabbit"
 # "file": cdr records are stored in files on disk
 # "rabbit": cdr records are sent to RabbitMQ queue
-mode = "file"
 
 [file]
-# directory holding the .cdr files
-dir = "records"
-# seconds per .cdr file
-rotate_seconds = 600
+dir = "records"         # directory holding the .cdr files
+rotate_seconds = 600    # seconds per .cdr file
 
 [rabbit]
 url = "amqp://guest:guest@localhost/"
 queue = "cdr"
 
 [simulator]
-# seconds between generated records
-gen_interval = 0.001
+gen_interval = 0.001    # seconds between generated records

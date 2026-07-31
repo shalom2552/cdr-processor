@@ -3,6 +3,8 @@ CXXFLAGS = -std=c++17 -Wall -Wextra -MMD -MP -pthread
 CXXFLAGS += -Iinc -Iinc/third_party
 LDFLAGS = -pthread
 
+CDR_GEN = scripts/generate_cdrs.py
+
 BUILD     = build
 OBJDIR    = $(BUILD)/obj
 BIN       = $(BUILD)/main
@@ -43,6 +45,9 @@ run: $(BIN)
 
 test: $(TEST_BIN)
 	./$(TEST_BIN)
+
+generate:
+	python3 $(CDR_GEN)
 
 debug:   CXXFLAGS += -g -O0 -fsanitize=address,undefined
 debug:   LDFLAGS  += -fsanitize=address,undefined

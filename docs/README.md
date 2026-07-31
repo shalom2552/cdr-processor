@@ -19,9 +19,23 @@ over an API.
 
 Run the simulator first to generate CDR records.
 
-### Simulator
+### Generator
 
+1. First install `pika` if using `rabbitmq`:
 
+```bash
+pip install pika # Ubuntu/Debian
+# Or
+sudo pacman -S python-pika # Arch Linux
+```
+
+2. Run the python generator to generate CDR records:
+
+```bash
+make generate # Using make
+# Or
+python3 scripts/generate_cdrs.py # Using python
+```
 
 ### Processor
 
