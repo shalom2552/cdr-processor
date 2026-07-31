@@ -11,7 +11,7 @@ DIM, CYAN, GREEN, RESET = "\033[2m", "\033[36m", "\033[32m", "\033[0m"
 
 
 def log(color, tag, msg):
-    print(f"{DIM}{datetime.now():%H:%M:%S}{RESET} {color}{tag:<7}{RESET} {msg}", file=sys.stderr)
+    print(f"\r{DIM}{datetime.now():%H:%M:%S}{RESET} {color}{tag:<7}{RESET} {msg}", file=sys.stderr)
 
 # --- config ---------------------------------------------------------------
 ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -82,9 +82,10 @@ def write_file(records):
         return
     os.makedirs(RECORDS_DIR, exist_ok=True)
     path = os.path.join(RECORDS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S") + ".cdr")
-    with open(path, "w") as fh:
+    with open(path + ".tmp", "w") as fh:
         fh.write(str(len(records)) + "\n")
         fh.write("\n".join(records) + "\n")
+    os.replace(path + ".tmp", path)
     log(GREEN, "saved", f"{os.path.relpath(path, ROOT)}  {len(records)} records")
 
 
@@ -100,6 +101,8 @@ def run_files():
                 records = []
                 start = time.time()
             time.sleep(GEN_INTERVAL)
+    except KeyboardInterrupt:
+        pass
     finally:
         write_file(records)
 
@@ -123,8 +126,14 @@ def run_rabbit():
         while True:
             channel.basic_publish("", RABBIT_QUEUE, make_cdr(next_seq()).encode())
             time.sleep(GEN_INTERVAL)
+    except KeyboardInterrupt:
+        pass
     finally:
-        conn.close()
+        try:
+            if conn.is_open:
+                conn.close()
+        except Exception:
+            pass
 
 
 # --- main -----------------------------------------------------------------
@@ -139,6 +148,8 @@ if __name__ == "__main__":
     # CLI flag wins, else config [source].mode, else print
     mode = "print" if args.print else "file" if args.file else "rabbit" if args.rabbit else MODE
     run = {"file": run_files, "rabbit": run_rabbit}.get(mode, run_print)
+
+    log(CYAN, "config", f"gen_interval={GEN_INTERVAL}s  seq={seq}")
 
     first = seq
     try:

@@ -47,7 +47,7 @@ test: $(TEST_BIN)
 	./$(TEST_BIN)
 
 generate:
-	python3 $(CDR_GEN)
+	@python3 $(CDR_GEN) $(ARGS)
 
 debug:   CXXFLAGS += -g -O0 -fsanitize=address,undefined
 debug:   LDFLAGS  += -fsanitize=address,undefined
