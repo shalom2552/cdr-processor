@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <string_view>
 #include <atomic>
 #include <mutex>
 
@@ -17,9 +18,14 @@ class Logger {
 public:
     static Logger& instance();
 
+    /* Log a message at the specified level */
     void log(LogLevel level, const std::string& message);
 
+    /* Set the logging level to one of the LogLevel enum values */
     void setLevel(LogLevel level);
+
+    /* Maps a config level name to a log level, defaults to Info */
+    static LogLevel levelFromName(std::string_view name);
 
 private:
     Logger();

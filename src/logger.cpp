@@ -45,20 +45,26 @@ static const char* levelColor(LogLevel level)
     return "";
 }
 
+LogLevel Logger::levelFromName(std::string_view name)
+{
+    if (name == "debug") {
+        return LogLevel::Debug;
+    } else if (name == "info") {
+        return LogLevel::Info;
+    } else if (name == "warn") {
+        return LogLevel::Warning;
+    } else if (name == "error") {
+        return LogLevel::Error;
+    } else if (name == "none") {
+        return LogLevel::None;
+    }
+    return LogLevel::Info;
+}
+
 Logger::Logger()
 {
     // set the log level according to config
-    if (cfg.log.level == "debug") {
-        m_level = LogLevel::Debug;
-    } else if (cfg.log.level == "info") {
-        m_level = LogLevel::Info;
-    } else if (cfg.log.level == "warn") {
-        m_level = LogLevel::Warning;
-    } else if (cfg.log.level == "error") {
-        m_level = LogLevel::Error;
-    } else if (cfg.log.level == "none") {
-        m_level = LogLevel::None;
-    }
+    m_level = levelFromName(cfg.log.level);
 }
 
 Logger& Logger::instance()

@@ -1,4 +1,5 @@
 #include "doctest.h"
+#include "config.hpp"
 #include "logger.hpp"
 
 #include <algorithm>
@@ -28,6 +29,17 @@ private:
     std::streambuf* m_old;
 };
 
+/* Sets a log level for the lifetime of the object, then restores the configured one */
+class LevelOverride {
+public:
+    explicit LevelOverride(cdrp::LogLevel level) { cdrp::Logger::instance().setLevel(level); }
+
+    ~LevelOverride()
+    {
+        cdrp::Logger::instance().setLevel(cdrp::Logger::levelFromName(cdrp::cfg.log.level));
+    }
+};
+
 bool contains(const std::string& text, const std::string& needle)
 {
     return text.find(needle) != std::string::npos;
@@ -49,7 +61,7 @@ using namespace cdrp;
 
 TEST_CASE("logger_emits_level_and_message")
 {
-    Logger::instance().setLevel(LogLevel::Debug);
+    const LevelOverride level(LogLevel::Info);
 
     CerrCapture out;
     logInfo("hello");
@@ -60,7 +72,7 @@ TEST_CASE("logger_emits_level_and_message")
 
 TEST_CASE("logger_drops_messages_below_level")
 {
-    Logger::instance().setLevel(LogLevel::Error);
+    const LevelOverride level(LogLevel::Error);
 
     CerrCapture out;
     logDebug("d");
@@ -72,7 +84,7 @@ TEST_CASE("logger_drops_messages_below_level")
 
 TEST_CASE("logger_emits_at_or_above_level")
 {
-    Logger::instance().setLevel(LogLevel::Warning);
+    const LevelOverride level(LogLevel::Warning);
 
     CerrCapture out;
     logWarn("w");
@@ -84,7 +96,7 @@ TEST_CASE("logger_emits_at_or_above_level")
 
 TEST_CASE("logger_colors_each_level")
 {
-    Logger::instance().setLevel(LogLevel::Debug);
+    const LevelOverride level(LogLevel::Debug);
 
     CerrCapture out;
     logDebug("d");
@@ -100,7 +112,7 @@ TEST_CASE("logger_colors_each_level")
 
 TEST_CASE("logger_prefixes_a_timestamp")
 {
-    Logger::instance().setLevel(LogLevel::Debug);
+    const LevelOverride level(LogLevel::Info);
 
     CerrCapture out;
     logInfo("x");
@@ -110,7 +122,7 @@ TEST_CASE("logger_prefixes_a_timestamp")
 
 TEST_CASE("logger_writes_one_line_per_message")
 {
-    Logger::instance().setLevel(LogLevel::Debug);
+    const LevelOverride level(LogLevel::Info);
 
     CerrCapture out;
     logInfo("a");
@@ -122,7 +134,7 @@ TEST_CASE("logger_writes_one_line_per_message")
 
 TEST_CASE("logger_does_not_interleave_across_threads")
 {
-    Logger::instance().setLevel(LogLevel::Debug);
+    const LevelOverride level(LogLevel::Info);
 
     constexpr int kThreads = 8;
     constexpr int kPerThread = 100;
