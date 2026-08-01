@@ -7,7 +7,7 @@
 
 namespace cdrp {
 
-class PipeDelimitedParser : public IParser {
+class PipeParser : public IParser {
 public:
     std::optional<CdrRecord> parse(std::string_view line) const override;
 };

@@ -23,7 +23,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 - [x] `Logger` — leveled, thread-safe, async sink
 - [ ] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
 - [x] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
-- [ ] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
+- [x] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
 - [ ] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")
 **Done when:** parser round-trips a 10k-line fixture with zero allocations per record beyond the record itself.
  
