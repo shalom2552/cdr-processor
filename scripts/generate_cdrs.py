@@ -2,22 +2,34 @@ import argparse
 import atexit
 import os
 import random
+import sys
 import time
+import tomllib
 from datetime import datetime, timedelta
+
+DIM, CYAN, GREEN, RESET = "\033[2m", "\033[36m", "\033[32m", "\033[0m"
+
+
+def log(color, tag, msg):
+    print(f"\r{DIM}{datetime.now():%H:%M:%S}{RESET} {color}{tag:<7}{RESET} {msg}", file=sys.stderr)
 
 # --- config ---------------------------------------------------------------
 ROOT = os.path.dirname(os.path.dirname(__file__))
 SEQ_FILE = os.path.join(os.path.dirname(__file__), ".seq")
-RECORDS_DIR = os.path.join(ROOT, "records")
+CONFIG_FILE = os.path.join(ROOT, "config.toml")
+
+with open(CONFIG_FILE, "rb") as fh:
+    CFG = tomllib.load(fh)
+
+MODE = CFG.get("source", {}).get("mode", "")
+RECORDS_DIR = os.path.join(ROOT, CFG.get("file", {}).get("dir", "records"))
+ROTATE_SECONDS = CFG.get("file", {}).get("rotate_seconds", 600)
+RABBIT_URL = CFG.get("rabbit", {}).get("url", "amqp://guest:guest@localhost/")
+RABBIT_QUEUE = CFG.get("rabbit", {}).get("queue", "cdr")
+GEN_INTERVAL = CFG.get("simulator", {}).get("gen_interval", 0.001)
 
 DIGITS = "0123456789"
 USAGE_TYPES = ["MOC", "MTC", "SMS-MO", "SMS-MT", "D", "U", "B", "X"]
-
-ROTATE_SECONDS = 600         # new file every 10 minutes
-GEN_INTERVAL = 0.001             # seconds between records
-
-RABBIT_URL = "amqp://guest:guest@localhost/"
-RABBIT_QUEUE = "cdr"
 
 
 # --- sequence -------------------------------------------------------------
@@ -70,13 +82,15 @@ def write_file(records):
         return
     os.makedirs(RECORDS_DIR, exist_ok=True)
     path = os.path.join(RECORDS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S") + ".cdr")
-    with open(path, "w") as fh:
+    with open(path + ".tmp", "w") as fh:
         fh.write(str(len(records)) + "\n")
         fh.write("\n".join(records) + "\n")
-    print(path)
+    os.replace(path + ".tmp", path)
+    log(GREEN, "saved", f"{os.path.relpath(path, ROOT)}  {len(records)} records")
 
 
 def run_files():
+    log(CYAN, "start", f"file mode -> {os.path.relpath(RECORDS_DIR, ROOT)}/, rotate every {ROTATE_SECONDS}s")
     records = []
     start = time.time()
     try:
@@ -87,11 +101,14 @@ def run_files():
                 records = []
                 start = time.time()
             time.sleep(GEN_INTERVAL)
+    except KeyboardInterrupt:
+        pass
     finally:
         write_file(records)
 
 
 def run_print():
+    log(CYAN, "start", "print mode")
     while True:
         print(make_cdr(next_seq()))
         time.sleep(GEN_INTERVAL)
@@ -100,32 +117,44 @@ def run_print():
 def run_rabbit():
     import pika
 
+    log(CYAN, "start", f"rabbit mode -> {RABBIT_URL} queue={RABBIT_QUEUE}")
     conn = pika.BlockingConnection(pika.URLParameters(RABBIT_URL))
     channel = conn.channel()
     channel.queue_declare(queue=RABBIT_QUEUE, durable=True)
+    log(GREEN, "ready", "connected, publishing")
     try:
         while True:
             channel.basic_publish("", RABBIT_QUEUE, make_cdr(next_seq()).encode())
             time.sleep(GEN_INTERVAL)
+    except KeyboardInterrupt:
+        pass
     finally:
-        conn.close()
+        try:
+            if conn.is_open:
+                conn.close()
+        except Exception:
+            pass
 
 
 # --- main -----------------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("-p", "--print", action="store_true", help="print records to the screen (default)")
+    group.add_argument("-p", "--print", action="store_true", help="print records to the screen")
     group.add_argument("-f", "--file", action="store_true", help="write records to rotating files")
     group.add_argument("-r", "--rabbit", action="store_true", help="stream records to RabbitMQ")
     args = parser.parse_args()
 
+    # CLI flag wins, else config [source].mode, else print
+    mode = "print" if args.print else "file" if args.file else "rabbit" if args.rabbit else MODE
+    run = {"file": run_files, "rabbit": run_rabbit}.get(mode, run_print)
+
+    log(CYAN, "config", f"gen_interval={GEN_INTERVAL}s  seq={seq}")
+
+    first = seq
     try:
-        if args.file:
-            run_files()
-        elif args.rabbit:
-            run_rabbit()
-        else:
-            run_print()
+        run()
     except KeyboardInterrupt:
         pass
+    finally:
+        log(CYAN, "stop", f"{seq - first} records generated")
