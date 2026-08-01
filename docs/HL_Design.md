@@ -12,6 +12,16 @@ The project is structured as follows:
 - **API**: Provides access to the database.
 
 
+### Config
+
+Parses `config.toml` once at startup, validates it, exposes it as the global `cfg`.
+Bad config throws.
+
+### Logger
+
+Level-filtered logging to stderr: timestamp, colored level tag, message.
+Level comes from `config.toml`. Thread-safe.
+
 ### Python Simulator
 
 The simulator generates CDR records to three different destinations:

@@ -20,7 +20,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 **Goal:** reusable primitives, all unit-tested in isolation.
  
 - [x] `Config` — INI-style parser, typed getters, defaults, validation on load
-- [ ] `Logger` — leveled, thread-safe, async sink
+- [x] `Logger` — leveled, thread-safe, async sink
 - [ ] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
 - [ ] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
 - [ ] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
