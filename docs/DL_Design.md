@@ -30,8 +30,8 @@ Bad values throw and stop the program at startup.
 
 `inc/logger.hpp`, `src/logger.cpp`.
 
-Singleton. Levels are `Debug < Info < Warning < Error`. Anything below the active level
-is dropped. The level comes from `cfg.log.level`.
+Singleton. Levels are `Debug < Info < Warning < Error < None`. Anything below the active
+level is dropped, and `None` drops everything. The level comes from `cfg.log.level`.
 
 Each line looks like:
 

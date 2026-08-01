@@ -21,6 +21,8 @@ static std::string levelName(LogLevel level)
             return "WARN";
         case LogLevel::Error:
             return "ERROR";
+        case LogLevel::None:
+            return "";
     }
     return "";
 }
@@ -37,6 +39,8 @@ static const char* levelColor(LogLevel level)
             return "\033[33m"; // yellow
         case LogLevel::Error:
             return "\033[31m"; // red
+        case LogLevel::None:
+            return "";
     }
     return "";
 }
@@ -52,6 +56,8 @@ Logger::Logger()
         m_level = LogLevel::Warning;
     } else if (cfg.log.level == "error") {
         m_level = LogLevel::Error;
+    } else if (cfg.log.level == "none") {
+        m_level = LogLevel::None;
     }
 }
 
@@ -63,7 +69,7 @@ Logger& Logger::instance()
 
 void Logger::log(LogLevel level, const std::string& message)
 {
-    if (level < m_level) {
+    if (level == LogLevel::None || level < m_level) {
         return;
     }
 

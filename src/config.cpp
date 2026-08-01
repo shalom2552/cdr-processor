@@ -18,7 +18,9 @@ void Config::load(std::string_view path)
     auto t = toml::parse_file(path);
 
     conf = t["config"]["conf"].value_or<bool>(false);
-    mode = t["source"]["mode"].value_or<std::string>("file");
+
+    source.mode = t["source"]["mode"].value_or<std::string>("file");
+    source.format = t["source"]["format"].value_or<std::string>("pipe");
 
     file.dir = t["file"]["dir"].value_or<std::string>("records");
     file.rotate_seconds = t["file"]["rotate_seconds"].value_or<int>(600);
@@ -34,8 +36,12 @@ void Config::validate()
     if (!conf) {
         throw std::runtime_error("Configuration not loaded");
     }
-    if (mode != "file" && mode != "rabbit") {
-        throw std::runtime_error("Invalid mode: " + mode + "\nValid modes are file and rabbit.");
+    if (source.mode != "file" && source.mode != "rabbit") {
+        throw std::runtime_error("Invalid mode: " + source.mode + "\nValid modes are file and rabbit.");
+    }
+    if (source.format != "pipe" && source.format != "json") {
+        std::string formats = "pipe";
+        throw std::runtime_error("Invalid format: " + source.format + "\nValid formats are" + formats + ".");
     }
     if (file.dir.empty()) {
         throw std::runtime_error("File directory not set");
@@ -47,7 +53,8 @@ void Config::validate()
         throw std::runtime_error("RabbitMQ URL or queue not set");
     }
     if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
-        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are info, debug, warn, error.");
+        std::string levels = "info, debug, warn, error";
+        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are" + levels + ".");
     }
 }
 

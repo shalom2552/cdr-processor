@@ -33,7 +33,10 @@ private:
 public:
     bool conf = false;
 
-    std::string mode;
+    struct {
+        std::string mode;
+        std::string format;
+    } source;
 
     struct {
         std::string dir;

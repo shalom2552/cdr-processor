@@ -8,7 +8,7 @@ TEST_CASE("config_loads")
 
 TEST_CASE("config_mode_is_valid")
 {
-    const std::string& mode = cdrp::Config::instance().mode;
+    const std::string& mode = cdrp::Config::instance().source.mode;
     CHECK((mode == "file" || mode == "rabbit"));
 }
 
