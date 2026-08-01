@@ -18,6 +18,12 @@ The project is structured as follows:
 duration, and byte counts. `UsageType` covers voice, SMS, data, and the calls that
 never went through.
 
+### Parser
+
+`IParser` is the interface: a line goes in, a `CdrRecord` or nothing comes out.
+`PipeParser` reads the pipe format the simulator writes. Bad lines are dropped and
+logged.
+
 ### Config
 
 Parses `config.toml` once at startup, validates it, exposes it as the global `cfg`.

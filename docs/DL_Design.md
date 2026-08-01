@@ -14,6 +14,26 @@ went unanswered, hit a busy line, or failed.
 The byte counts are only used for data. The second party fields are 0 when there is
 no second party.
 
+## Parser
+
+`inc/iparser.hpp`, `inc/pipe_parser.hpp`, `src/pipe_parser.cpp`.
+
+`IParser::parse()` takes a line and returns an empty optional when the line is bad.
+Another format means another class behind the same interface, picked by `source.format`
+in `config.toml`.
+
+`PipeParser` reads the simulator format, 12 fields split on `|`:
+
+```
+seq|imsi|imei|usage|msisdn|DD/MM/YYYY|HH:MM:SS|duration|rx|tx|sp_imsi|sp_msisdn
+```
+
+Numbers go through `std::from_chars`, so no locale and no exceptions. The byte counts
+and second party fields may be empty and read as 0. Date and time are parsed by hand
+and joined with `timegm`, so the result is UTC.
+
+A line that does not fit is logged at debug level and skipped.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.
