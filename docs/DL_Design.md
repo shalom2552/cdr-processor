@@ -1,5 +1,19 @@
 # Detailed Level Design
 
+## CDR Record
+
+`inc/cdr_record.hpp`.
+
+Plain struct, one record. No methods, no parsing — the reader fills it in.
+
+`UsageType` has eight values: `MOC` and `MTC` for outgoing and incoming calls,
+`SMS_MO` and `SMS_MT` for messages, `D` for data, and `U`, `B`, `X` for calls that
+went unanswered, hit a busy line, or failed.
+
+`callTime` is the date and time together as `std::time_t`, `duration` is in seconds.
+The byte counts are only used for data. The second party fields are 0 when there is
+no second party.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.

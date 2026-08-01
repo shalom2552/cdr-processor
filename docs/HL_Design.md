@@ -12,6 +12,12 @@ The project is structured as follows:
 - **API**: Provides access to the database.
 
 
+### CDR Record
+
+`CdrRecord` holds one call record in memory: subscriber ids, usage type, time,
+duration, and byte counts. `UsageType` covers voice, SMS, data, and the calls that
+never went through.
+
 ### Config
 
 Parses `config.toml` once at startup, validates it, exposes it as the global `cfg`.
