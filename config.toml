@@ -1,6 +1,6 @@
 
 [config]
-conf = true
+conf = true # senaty check for testings, tests fails on false
 
 [source]
 mode = "rabbit"         # mode = "file" or "rabbit"

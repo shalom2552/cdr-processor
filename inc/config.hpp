@@ -6,6 +6,10 @@
 
 namespace cdrp {
 
+/**
+ * @class Config
+ * A singletone class that holds application configuration.
+ */
 class Config {
 public:
     static const Config& instance() {
@@ -26,7 +30,19 @@ private:
     void validate();
 
 public:
-    bool m_conf;
+    bool conf = false;
+
+    std::string_view mode;
+
+    struct {
+        std::string_view dir;
+        int rotate_seconds;
+    } file;
+
+    struct {
+        std::string_view url;
+        std::string_view queue;
+    } rabbit;
 };
 
 } // namespace cdrp
