@@ -2,6 +2,7 @@
 
 #include "constants.hpp"
 
+#include <string>
 #include <string_view>
 
 namespace cdrp {
@@ -24,7 +25,7 @@ private:
     Config();
 
     // Load configuration from a file.
-    void load(const std::string_view& path=kConfigPath);
+    void load(std::string_view path=kConfigPath);
 
     // Validate the loaded configuration.
     void validate();
@@ -32,16 +33,16 @@ private:
 public:
     bool conf = false;
 
-    std::string_view mode;
+    std::string mode;
 
     struct {
-        std::string_view dir;
-        int rotate_seconds;
+        std::string dir;
+        int rotate_seconds = 0;
     } file;
 
     struct {
-        std::string_view url;
-        std::string_view queue;
+        std::string url;
+        std::string queue;
     } rabbit;
 };
 
