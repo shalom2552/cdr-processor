@@ -1,13 +1,12 @@
 #include "config.hpp"
-#include <iostream>
+#include "logger.hpp"
+
+#include <string>
 
 using namespace cdrp;
 int main()
 {
-    const Config& cfg = Config::instance();
-
-    std::cout << "Hello, World!" << std::endl;
-    std::cout << "Config value: " << cfg.conf << std::endl;
+    logInfo("Config value: " + std::string(cfg.conf ? "true" : "false"));
     return 0;
 }
 

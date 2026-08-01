@@ -44,7 +44,13 @@ public:
         std::string url;
         std::string queue;
     } rabbit;
+
+    struct {
+        std::string level;
+    } log;
 };
+
+inline const Config& cfg = Config::instance();
 
 } // namespace cdrp
 

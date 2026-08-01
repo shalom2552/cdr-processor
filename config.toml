@@ -2,6 +2,10 @@
 [config]
 conf = true # senaty check for testings, tests fails on false
 
+[log]
+# log_level: debug, info, warn, error
+log_level = "info"
+
 [source]
 mode = "rabbit"         # mode = "file" or "rabbit"
 # "file": cdr records are stored in files on disk

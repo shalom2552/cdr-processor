@@ -25,6 +25,8 @@ void Config::load(std::string_view path)
 
     rabbit.url = t["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
     rabbit.queue = t["rabbit"]["queue"].value_or<std::string>("cdr");
+
+    log.level = t["log"]["level"].value_or<std::string>("info");
 }
 
 void Config::validate()
@@ -33,7 +35,7 @@ void Config::validate()
         throw std::runtime_error("Configuration not loaded");
     }
     if (mode != "file" && mode != "rabbit") {
-        throw std::runtime_error("Invalid mode: " + mode);
+        throw std::runtime_error("Invalid mode: " + mode + "\nValid modes are file and rabbit.");
     }
     if (file.dir.empty()) {
         throw std::runtime_error("File directory not set");
@@ -43,6 +45,9 @@ void Config::validate()
     }
     if (rabbit.url.empty() || rabbit.queue.empty()) {
         throw std::runtime_error("RabbitMQ URL or queue not set");
+    }
+    if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
+        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are info, debug, warn, error.");
     }
 }
 
