@@ -37,6 +37,37 @@ and joined with `timegm`, so the result is UTC.
 
 A line that does not fit is logged at debug level and skipped.
 
+## Source
+
+`inc/source/icdr_source.hpp`.
+
+`ICdrSource::next()` fills a vector with the next batch and says `OK`, `DONE`, or `FAIL`.
+Where the records come from is the implementation's business, so a RabbitMQ source later
+slots in behind the same call.
+
+### File Source
+
+`inc/source/file_source.hpp`, `src/source/file_source.cpp`.
+
+Every `.cdr` file opens with one line:
+
+```
+CDR|pipe|2379
+```
+
+The tag says it is a CDR file, then the format the records are written in, then how many
+there are. `scripts/cdr_pipe_generator.py` writes it and refuses to run unless
+`source.format` is `pipe`, since it only knows how to write pipe records.
+
+`FileSource` maps the file, reads that header, and hands each line to the parser. It walks
+the mapping with `memchr` looking for newlines, so a line is a `string_view` into the
+mapped pages and nothing is copied until the record is built. A batch stops at
+`kBatchSize` records, and `DONE` comes when the file runs out.
+
+A file that will not map, or that does not start with a good header, logs a warning and
+yields no records. Bad lines inside a good file are skipped by the parser, one bad line
+does not lose the rest.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.

@@ -34,12 +34,12 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 2 — Ingest
 **Goal:** files in → records streamed to a sink.
  
-- [ ] `ICdrSource` interface — `bool next(std::vector<CdrRecord>&)`
+- [x] `ICdrSource` interface — `bool next(std::vector<CdrRecord>&)`
 - [ ] `DirWatchSource` — inotify on input dir, stable-file detection (size settled / rename-on-complete)
-- [ ] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
+- [x] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
 - [ ] Concurrent multi-file: 2–4 files in flight, one worker per file
 - [ ] Move to `done/` on success, `failed/` on parse error
-- [ ] `scripts/cdr_pipe_generator.py` — generates synthetic CDR files at configurable rate/size
+- [x] `scripts/cdr_pipe_generator.py` — generates synthetic CDR files at configurable rate/size
 **Done when:** the generator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
  
 **Question:** rename-into-directory or size-polling for completion detection? Rename is atomic and race-free — push for it if you control the delivery side.

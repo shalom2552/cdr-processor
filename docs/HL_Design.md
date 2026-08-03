@@ -40,6 +40,12 @@ Fixed set of worker threads over a bounded task queue. `submit()` blocks while t
 queue is full, so a fast producer is slowed down instead of piling up memory. Tasks
 that throw are logged, not fatal. Shutdown drains the queue and joins the workers.
 
+### Source
+
+`ICdrSource` hands out records a batch at a time and says when it is done. `FileSource`
+is the first one: it maps a `.cdr` file, checks the `CDR|<format>|<count>` header, and
+runs the lines through the parser. A queue source drops in behind the same interface.
+
 ### Mapped File
 
 Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,
