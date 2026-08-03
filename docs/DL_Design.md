@@ -22,7 +22,7 @@ no second party.
 Another format means another class behind the same interface, picked by `source.format`
 in `config.toml`.
 
-`PipeParser` reads the simulator format, 12 fields split on `|`:
+`PipeParser` reads the generator format, 12 fields split on `|`:
 
 ```
 seq|imsi|imei|usage|msisdn|DD/MM/YYYY|HH:MM:SS|duration|rx|tx|sp_imsi|sp_msisdn
@@ -63,3 +63,33 @@ The time is gray and the level tag is colored: gray debug, green info, yellow wa
 red error. Write logs with `logDebug`, `logInfo`, `logWarn`, `logError`.
 
 Output goes to stderr. A mutex keeps lines from mixing when threads log at once.
+
+## Thread Pool
+
+`inc/thread_pool.hpp`, `src/thread_pool.cpp`.
+
+Fixed workers, bounded queue. Built with a worker count and a queue size, both must be
+above 0 or the constructor throws.
+
+`submit()` takes a `std::function<void()>`, pushes it, and wakes one worker. When the
+queue is full it blocks until a worker frees a slot, so a fast producer cannot outrun
+the workers and grow memory without bound. It returns false only when the pool is
+already stopping, and true once the task is queued.
+
+One mutex guards the queue. Two condition variables sit on it: `m_cv_full` for
+producers waiting for a slot, `m_cv_empty` for workers waiting for a task. Each worker
+loops: wait for a task, pop it under the lock, drop the lock, run it. The task itself
+runs outside the lock, so workers do not block each other.
+
+An exception out of a task is caught in the worker loop and logged, and the worker
+takes the next task. A worker never dies.
+
+The destructor sets the stop flag, wakes everyone, and joins. Workers only leave the
+loop once the queue is empty, so queued work is drained, not dropped. The worker vector
+is declared last so the threads start after the rest of the state is live.
+
+The pool is not copyable. It is safe to submit from many threads at once, and from
+inside a running task.
+
+Tests are in `tests/thread_pool.cpp`. They only use the public API and every wait is
+bounded, so a broken pool fails instead of hanging the suite.

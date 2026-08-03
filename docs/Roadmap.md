@@ -39,8 +39,8 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 - [ ] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
 - [ ] Concurrent multi-file: 2–4 files in flight, one worker per file
 - [ ] Move to `done/` on success, `failed/` on parse error
-- [ ] `tools/simulator` — generates synthetic CDR files at configurable rate/size
-**Done when:** simulator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
+- [ ] `scripts/generate_cdrs.py` — generates synthetic CDR files at configurable rate/size
+**Done when:** the generator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
  
 **Question:** rename-into-directory or size-polling for completion detection? Rename is atomic and race-free — push for it if you control the delivery side.
  

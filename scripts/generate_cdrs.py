@@ -21,12 +21,13 @@ CONFIG_FILE = os.path.join(ROOT, "config.toml")
 with open(CONFIG_FILE, "rb") as fh:
     CFG = tomllib.load(fh)
 
-MODE = CFG.get("source", {}).get("mode", "")
-RECORDS_DIR = os.path.join(ROOT, CFG.get("file", {}).get("dir", "records"))
-ROTATE_SECONDS = CFG.get("file", {}).get("rotate_seconds", 600)
-RABBIT_URL = CFG.get("rabbit", {}).get("url", "amqp://guest:guest@localhost/")
-RABBIT_QUEUE = CFG.get("rabbit", {}).get("queue", "cdr")
-GEN_INTERVAL = CFG.get("simulator", {}).get("gen_interval", 0.001)
+SOURCE = CFG.get("source", {})
+MODE = SOURCE.get("mode", "")
+RECORDS_DIR = os.path.join(ROOT, SOURCE.get("file", {}).get("dir", "records"))
+ROTATE_SECONDS = SOURCE.get("file", {}).get("rotate_seconds", 600)
+RABBIT_URL = SOURCE.get("rabbit", {}).get("url", "amqp://guest:guest@localhost/")
+RABBIT_QUEUE = SOURCE.get("rabbit", {}).get("queue", "cdr")
+GEN_INTERVAL = CFG.get("generator", {}).get("gen_interval", 0.001)
 
 DIGITS = "0123456789"
 USAGE_TYPES = ["MOC", "MTC", "SMS-MO", "SMS-MT", "D", "U", "B", "X"]

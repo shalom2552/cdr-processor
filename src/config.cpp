@@ -22,11 +22,11 @@ void Config::load(std::string_view path)
     source.mode = t["source"]["mode"].value_or<std::string>("file");
     source.format = t["source"]["format"].value_or<std::string>("pipe");
 
-    file.dir = t["file"]["dir"].value_or<std::string>("records");
-    file.rotate_seconds = t["file"]["rotate_seconds"].value_or<int>(600);
+    file.dir = t["source"]["file"]["dir"].value_or<std::string>("records");
+    file.rotate_seconds = t["source"]["file"]["rotate_seconds"].value_or<int>(600);
 
-    rabbit.url = t["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
-    rabbit.queue = t["rabbit"]["queue"].value_or<std::string>("cdr");
+    rabbit.url = t["source"]["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
+    rabbit.queue = t["source"]["rabbit"]["queue"].value_or<std::string>("cdr");
 
     log.level = t["log"]["level"].value_or<std::string>("info");
 }
