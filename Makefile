@@ -10,11 +10,11 @@ OBJDIR    = $(BUILD)/obj
 BIN       = $(BUILD)/main
 TEST_BIN  = $(BUILD)/tests
 
-SRC = $(wildcard src/*.cpp)
+SRC = $(shell find src -name '*.cpp')
 OBJ = $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC))
 
 LIB_OBJ = $(filter-out $(OBJDIR)/main.o,$(OBJ))
-TEST_SRC = $(wildcard tests/*.cpp)
+TEST_SRC = $(shell find tests -name '*.cpp')
 TEST_OBJ = $(patsubst tests/%.cpp,$(OBJDIR)/tests/%.o,$(TEST_SRC))
 DEPS = $(OBJ:.o=.d) $(TEST_OBJ:.o=.d)
 

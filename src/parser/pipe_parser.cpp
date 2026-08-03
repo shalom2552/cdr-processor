@@ -1,32 +1,32 @@
 #include "constants.hpp"
-#include "pipe_parser.hpp"
+#include "parser/pipe_parser.hpp"
 #include "cdr_record.hpp"
 #include "logger.hpp"
 
+#include <array>
 #include <charconv>
 #include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace cdrp {
 
 namespace {
 
-std::vector<std::string_view> split(std::string_view str, char delim)
+/* Fills out with the fields of str. False when the line does not hold exactly kFieldCount */
+bool split(std::string_view str, char delim, std::array<std::string_view, kFieldCount>& out)
 {
-    std::vector<std::string_view> out;
     std::size_t start = 0;
-    while (true) {
-        std::size_t pos = str.find(delim, start);
-        out.push_back(str.substr(start, pos - start));
+    for (std::size_t i = 0; i < kFieldCount; ++i) {
+        const std::size_t pos = str.find(delim, start);
+        out[i] = str.substr(start, pos - start);
         if (pos == std::string_view::npos) {
-            break;
+            return i + 1 == kFieldCount; // ran out of fields early
         }
         start = pos + 1;
     }
-    return out;
+    return false; // more fields than the format holds
 }
 
 bool parseU64(std::string_view str, uint64_t& out, bool optional = false, size_t maxDigits = 0)
@@ -92,26 +92,29 @@ std::optional<CdrRecord> invalidLine(std::string_view line)
 
 std::optional<CdrRecord> PipeParser::parse(std::string_view line) const
 {
-    std::vector<std::string_view> fields = split(line, '|');
-    if (fields.size() != kFieldCount) {
+    std::array<std::string_view, kFieldCount> fields;
+    std::optional<UsageType> usage;
+    CdrRecord record;
+
+    // stops on first fail
+    const bool ok = split(line, '|', fields)
+        && parseU64(fields[0], record.sequence)
+        && parseU64(fields[1], record.subscriberImsi, false, kMaxImsiDigits)
+        && (usage = parseUsage(fields[3])).has_value()
+        && parseU64(fields[4], record.subscriberMSISDN, false, kMaxMsisdnDigits)
+        && parseDateTime(fields[5], fields[6], record.callTime)
+        && parseU64(fields[7], record.duration)
+        && parseU64(fields[8], record.bytesReceived, true)
+        && parseU64(fields[9], record.bytesTransmitted, true)
+        && parseU64(fields[10], record.secondPartyIMSI, true, kMaxImsiDigits)
+        && parseU64(fields[11], record.secondPartyMSISDN, true, kMaxMsisdnDigits);
+
+    if (!ok) {
         return invalidLine(line);
     }
 
-    CdrRecord record;
-    if (!parseU64(fields[0], record.sequence)) return invalidLine(line);
-    if (!parseU64(fields[1], record.subscriberImsi, false, kMaxImsiDigits)) return invalidLine(line);
-    record.subscriberImei = std::string(fields[2]);
-    auto usage = parseUsage(fields[3]);
-    if (!usage) return invalidLine(line);
     record.usageType = *usage;
-    if (!parseU64(fields[4], record.subscriberMSISDN, false, kMaxMsisdnDigits)) return invalidLine(line);
-    if (!parseDateTime(fields[5], fields[6], record.callTime)) return invalidLine(line);
-    if (!parseU64(fields[7], record.duration)) return invalidLine(line);
-    if (!parseU64(fields[8], record.bytesReceived, true)) return invalidLine(line);
-    if (!parseU64(fields[9], record.bytesTransmitted, true)) return invalidLine(line);
-    if (!parseU64(fields[10], record.secondPartyIMSI, true, kMaxImsiDigits)) return invalidLine(line);
-    if (!parseU64(fields[11], record.secondPartyMSISDN, true, kMaxMsisdnDigits)) return invalidLine(line);
-
+    record.subscriberImei = std::string(fields[2]);
     return record;
 }
 

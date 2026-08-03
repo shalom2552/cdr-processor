@@ -8,7 +8,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 0 — Skeleton
 **Goal:** buildable repo, nothing works yet.
  
-- [x] Repo layout: `src/ include/ tests/ config/ docs/ tools/`
+- [x] Repo layout: `src/ inc/ tests/ scripts/ docs/`, `config.toml` at the root
 - [x] Makefile (`all`, `test`, `clean`, `debug`, `release`), C++17, `-Wall -Wextra -pedantic`
 - [x] Unit test harness wired (doctest / gtest, header-only preferred)
 - [x] CI: build + test on push
@@ -21,7 +21,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
  
 - [x] `Config` — INI-style parser, typed getters, defaults, validation on load
 - [x] `Logger` — leveled, thread-safe, async sink
-- [ ] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
+- [x] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
 - [x] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
 - [x] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
 - [ ] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")

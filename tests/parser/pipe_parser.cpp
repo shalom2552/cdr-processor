@@ -1,7 +1,7 @@
 #include "doctest.h"
 #include "constants.hpp"
-#include "iparser.hpp"
-#include "pipe_parser.hpp"
+#include "parser/iparser.hpp"
+#include "parser/pipe_parser.hpp"
 
 #include <ctime>
 #include <memory>

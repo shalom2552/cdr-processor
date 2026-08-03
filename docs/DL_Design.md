@@ -1,5 +1,8 @@
 # Detailed Level Design
 
+Core stuff lives at the top of `inc/` and `src/`. Anything bigger than one file gets a
+folder of its own.
+
 ## CDR Record
 
 `inc/cdr_record.hpp`.
@@ -16,7 +19,7 @@ no second party.
 
 ## Parser
 
-`inc/iparser.hpp`, `inc/pipe_parser.hpp`, `src/pipe_parser.cpp`.
+`inc/parser/iparser.hpp`, `inc/parser/pipe_parser.hpp`, `src/parser/pipe_parser.cpp`.
 
 `IParser::parse()` takes a line and returns an empty optional when the line is bad.
 Another format means another class behind the same interface, picked by `source.format`
