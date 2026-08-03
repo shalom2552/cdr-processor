@@ -1,19 +1,20 @@
-
 [config]
-conf = true
+conf = true             # senaty check, fails on false
+
+[log]
+level = "info"          # debug, info, warn, error, none
 
 [source]
-mode = "rabbit"         # mode = "file" or "rabbit"
-# "file": cdr records are stored in files on disk
-# "rabbit": cdr records are sent to RabbitMQ queue
+mode = "file"           # mode = "file" or "rabbit"
+format = "pipe"         # pipe is the only supported format
 
-[file]
+[source.file]
 dir = "records"         # directory holding the .cdr files
 rotate_seconds = 600    # seconds per .cdr file
 
-[rabbit]
+[source.rabbit]
 url = "amqp://guest:guest@localhost/"
-queue = "cdr"
+queue = "cdr"          # RabbitMQ queue name for cdr messages
 
-[simulator]
+[generator]
 gen_interval = 0.001    # seconds between generated records

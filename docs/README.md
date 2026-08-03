@@ -17,7 +17,7 @@ over an API.
 
 ## Build Instructions
 
-Run the simulator first to generate CDR records.
+Run the generator first to generate CDR records.
 
 ### Generator
 

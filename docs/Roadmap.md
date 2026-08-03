@@ -19,11 +19,11 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 1 — Core Infrastructure
 **Goal:** reusable primitives, all unit-tested in isolation.
  
-- [ ] `Config` — INI-style parser, typed getters, defaults, validation on load
-- [ ] `Logger` — leveled, thread-safe, async sink
+- [x] `Config` — INI-style parser, typed getters, defaults, validation on load
+- [x] `Logger` — leveled, thread-safe, async sink
 - [ ] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
-- [ ] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
-- [ ] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
+- [x] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
+- [x] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
 - [ ] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")
 **Done when:** parser round-trips a 10k-line fixture with zero allocations per record beyond the record itself.
  
@@ -39,8 +39,8 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 - [ ] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
 - [ ] Concurrent multi-file: 2–4 files in flight, one worker per file
 - [ ] Move to `done/` on success, `failed/` on parse error
-- [ ] `tools/simulator` — generates synthetic CDR files at configurable rate/size
-**Done when:** simulator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
+- [ ] `scripts/generate_cdrs.py` — generates synthetic CDR files at configurable rate/size
+**Done when:** the generator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
  
 **Question:** rename-into-directory or size-polling for completion detection? Rename is atomic and race-free — push for it if you control the delivery side.
  

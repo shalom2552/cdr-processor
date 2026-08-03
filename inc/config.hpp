@@ -2,10 +2,15 @@
 
 #include "constants.hpp"
 
+#include <string>
 #include <string_view>
 
 namespace cdrp {
 
+/**
+ * @class Config
+ * A singletone class that holds application configuration.
+ */
 class Config {
 public:
     static const Config& instance() {
@@ -20,14 +25,35 @@ private:
     Config();
 
     // Load configuration from a file.
-    void load(const std::string_view& path=kConfigPath);
+    void load(std::string_view path=kConfigPath);
 
     // Validate the loaded configuration.
     void validate();
 
 public:
-    bool m_conf;
+    bool conf = false;
+
+    struct {
+        std::string mode;
+        std::string format;
+    } source;
+
+    struct {
+        std::string dir;
+        int rotate_seconds = 0;
+    } file;
+
+    struct {
+        std::string url;
+        std::string queue;
+    } rabbit;
+
+    struct {
+        std::string level;
+    } log;
 };
+
+inline const Config& cfg = Config::instance();
 
 } // namespace cdrp
 
