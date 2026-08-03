@@ -23,6 +23,9 @@ with open(CONFIG_FILE, "rb") as fh:
 
 SOURCE = CFG.get("source", {})
 MODE = SOURCE.get("mode", "")
+FORMAT = SOURCE.get("format", "pipe")
+if FORMAT != "pipe":
+    raise SystemExit(f"this generator writes pipe records, config asks for '{FORMAT}'")
 RECORDS_DIR = os.path.join(ROOT, SOURCE.get("file", {}).get("dir", "records"))
 ROTATE_SECONDS = SOURCE.get("file", {}).get("rotate_seconds", 600)
 RABBIT_URL = SOURCE.get("rabbit", {}).get("url", "amqp://guest:guest@localhost/")
@@ -84,7 +87,7 @@ def write_file(records):
     os.makedirs(RECORDS_DIR, exist_ok=True)
     path = os.path.join(RECORDS_DIR, datetime.now().strftime("%Y%m%d_%H%M%S") + ".cdr")
     with open(path + ".tmp", "w") as fh:
-        fh.write(str(len(records)) + "\n")
+        fh.write(f"CDR|{FORMAT}|{len(records)}\n")
         fh.write("\n".join(records) + "\n")
     os.replace(path + ".tmp", path)
     log(GREEN, "saved", f"{os.path.relpath(path, ROOT)}  {len(records)} records")

@@ -50,7 +50,7 @@ so file size does not turn into memory use. Bad paths fail quietly and are logge
 The generator generates CDR records to three different destinations:
 
 1. **stdout (-p, --print)**: prints the records to the terminal
-2. **file (-f, --file)**: writes the records to a file with an header (records count)
+2. **file (-f, --file)**: writes the records to a file headed by `CDR|<format>|<count>`
 3. **rabbitmw (-r, --rabbit)**: sends the records to a RabbitMQ queue
 
 

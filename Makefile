@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++17 -Wall -Wextra -MMD -MP -pthread
 CXXFLAGS += -Iinc -Iinc/third_party
 LDFLAGS = -pthread
 
-CDR_GEN = scripts/generate_cdrs.py
+CDR_GEN = scripts/cdr_pipe_generator.py
 
 BUILD     = build
 OBJDIR    = $(BUILD)/obj

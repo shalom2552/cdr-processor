@@ -34,7 +34,7 @@ sudo pacman -S python-pika # Arch Linux
 ```bash
 make generate # Using make
 # Or
-python3 scripts/generate_cdrs.py # Using python
+python3 scripts/cdr_pipe_generator.py # Using python
 ```
 
 ### Processor
