@@ -96,3 +96,19 @@ inside a running task.
 
 Tests are in `tests/thread_pool.cpp`. They only use the public API and every wait is
 bounded, so a broken pool fails instead of hanging the suite.
+
+## Mapped File
+
+`inc/util/mapped_file.hpp`, `src/util/mapped_file.cpp`.
+
+Wraps one read only `mmap`, so a 5 GB file costs no copy and no heap. The constructor
+opens the path, checks it is a regular file, maps it, and tells the kernel to expect a
+sequential read. The destructor unmaps.
+
+`ok()` says whether the mapping worked, `data()` and `size()` hand the bytes to the
+reader as they are. An empty file is `ok()` too, with a null pointer and size 0. Every
+failure is logged with the path and leaves `ok()` false, so the caller checks once and
+moves on.
+
+The file descriptor is closed right after the map, since the mapping keeps its own
+reference. Not copyable: two owners would unmap the same pages twice.

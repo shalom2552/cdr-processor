@@ -40,6 +40,11 @@ Fixed set of worker threads over a bounded task queue. `submit()` blocks while t
 queue is full, so a fast producer is slowed down instead of piling up memory. Tasks
 that throw are logged, not fatal. Shutdown drains the queue and joins the workers.
 
+### Mapped File
+
+Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,
+so file size does not turn into memory use. Bad paths fail quietly and are logged.
+
 ### Python Generator
 
 The generator generates CDR records to three different destinations:
