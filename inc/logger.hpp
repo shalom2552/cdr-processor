@@ -24,6 +24,9 @@ public:
     /* Set the logging level to one of the LogLevel enum values */
     void setLevel(LogLevel level);
 
+    /* Returns the active log level */
+    LogLevel level() const { return m_level; }
+
     /* Maps a config level name to a log level, defaults to Info */
     static LogLevel levelFromName(std::string_view name);
 

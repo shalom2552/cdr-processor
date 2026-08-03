@@ -1,6 +1,4 @@
 #include "doctest.h"
-#include "config.hpp"
-#include "logger.hpp"
 #include "util/mapped_file.hpp"
 
 #include <filesystem>
@@ -32,13 +30,6 @@ private:
 
 int TempFile::s_counter = 0;
 
-/* Keeps an expected error out of the test output */
-class Quiet {
-public:
-    Quiet() { cdrp::Logger::instance().setLevel(cdrp::LogLevel::None); }
-    ~Quiet() { cdrp::Logger::instance().setLevel(cdrp::Logger::levelFromName(cdrp::cfg.log.level)); }
-};
-
 } // namespace
 
 using namespace cdrp;
@@ -65,7 +56,6 @@ TEST_CASE("mapped_file_maps_a_file")
 
 TEST_CASE("mapped_file_maps_an_empty_file")
 {
-    const Quiet quiet;
     const TempFile file("");
 
     const MappedFile mapped(file.path());
@@ -76,10 +66,7 @@ TEST_CASE("mapped_file_maps_an_empty_file")
 
 TEST_CASE("mapped_file_fails_on_a_missing_file")
 {
-    const Quiet quiet;
-
     const MappedFile mapped("/no/such/path/at/all.cdr");
-
     CHECK_FALSE(mapped.ok());
     CHECK(mapped.empty());
     CHECK(mapped.size() == 0);

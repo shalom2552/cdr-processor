@@ -15,13 +15,13 @@ void run()
     FileSource fs("records/20260804_005720.cdr", parser);
     std::vector<CdrRecord> out;
     fs.next(out);
-    logInfo("Parsed records: " + std::to_string(out.size()));
+    logInfo("[Processor] parsed " + std::to_string(out.size()) + " records");
 }
 
 int main()
 {
-    logInfo("Starting Processor application");
-    logInfo("Config value: " + std::string(cfg.conf ? "true" : "false"));
+    logInfo("[Processor] starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format
+        + "' format, records in /" + cfg.file.dir);
 
     run();
     return 0;

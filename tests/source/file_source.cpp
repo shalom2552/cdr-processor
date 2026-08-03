@@ -1,7 +1,5 @@
 #include "doctest.h"
-#include "config.hpp"
 #include "constants.hpp"
-#include "logger.hpp"
 #include "parser/pipe_parser.hpp"
 #include "source/file_source.hpp"
 
@@ -33,13 +31,6 @@ private:
 
 int TempFile::s_counter = 0;
 
-/* Keeps expected warnings out of the test output */
-class Quiet {
-public:
-    Quiet() { cdrp::Logger::instance().setLevel(cdrp::LogLevel::None); }
-    ~Quiet() { cdrp::Logger::instance().setLevel(cdrp::Logger::levelFromName(cdrp::cfg.log.level)); }
-};
-
 /* One well formed record, sequence picks it apart from its neighbours */
 std::string record(int sequence)
 {
@@ -63,7 +54,6 @@ using namespace cdrp;
 
 TEST_CASE("file_source_reads_every_record_of_a_file")
 {
-    const Quiet quiet;
     const TempFile file(fileWith(3));
     const PipeParser parser;
     FileSource source(file.path(), parser);
@@ -79,7 +69,6 @@ TEST_CASE("file_source_reads_every_record_of_a_file")
 
 TEST_CASE("file_source_reports_done_once_the_file_runs_out")
 {
-    const Quiet quiet;
     const TempFile file(fileWith(2));
     const PipeParser parser;
     FileSource source(file.path(), parser);
@@ -92,7 +81,6 @@ TEST_CASE("file_source_reports_done_once_the_file_runs_out")
 
 TEST_CASE("file_source_clears_the_output_between_batches")
 {
-    const Quiet quiet;
     const TempFile file(fileWith(2));
     const PipeParser parser;
     FileSource source(file.path(), parser);
@@ -105,7 +93,6 @@ TEST_CASE("file_source_clears_the_output_between_batches")
 
 TEST_CASE("file_source_splits_a_long_file_into_batches")
 {
-    const Quiet quiet;
     const std::size_t total = kBatchSize + 10;
     const TempFile file(fileWith(total));
     const PipeParser parser;
@@ -125,7 +112,6 @@ TEST_CASE("file_source_splits_a_long_file_into_batches")
 
 TEST_CASE("file_source_reads_a_last_record_without_a_trailing_newline")
 {
-    const Quiet quiet;
     const TempFile file("CDR|pipe|2\n" + record(1) + "\n" + record(2));
     const PipeParser parser;
     FileSource source(file.path(), parser);
@@ -139,7 +125,6 @@ TEST_CASE("file_source_reads_a_last_record_without_a_trailing_newline")
 
 TEST_CASE("file_source_skips_bad_lines_and_keeps_the_rest")
 {
-    const Quiet quiet;
     const TempFile file("CDR|pipe|3\n" + record(1) + "\ngarbage line\n" + record(3) + "\n");
     const PipeParser parser;
     FileSource source(file.path(), parser);
@@ -154,7 +139,6 @@ TEST_CASE("file_source_skips_bad_lines_and_keeps_the_rest")
 
 TEST_CASE("file_source_yields_nothing_for_a_header_it_does_not_know")
 {
-    const Quiet quiet;
     const PipeParser parser;
 
     for (const char* header : { "", "records:3\n", "CDR|pipe\n", "CDR|pipe|many\n" }) {
@@ -169,7 +153,6 @@ TEST_CASE("file_source_yields_nothing_for_a_header_it_does_not_know")
 
 TEST_CASE("file_source_yields_nothing_for_a_header_only_file")
 {
-    const Quiet quiet;
     const TempFile file("CDR|pipe|0\n");
     const PipeParser parser;
     FileSource source(file.path(), parser);
@@ -181,7 +164,6 @@ TEST_CASE("file_source_yields_nothing_for_a_header_only_file")
 
 TEST_CASE("file_source_yields_nothing_for_a_missing_file")
 {
-    const Quiet quiet;
     const PipeParser parser;
     FileSource source("/no/such/path/at/all.cdr", parser);
 
@@ -192,7 +174,6 @@ TEST_CASE("file_source_yields_nothing_for_a_missing_file")
 
 TEST_CASE("file_source_is_usable_through_the_icdr_source_interface")
 {
-    const Quiet quiet;
     const TempFile file(fileWith(1));
     const PipeParser parser;
     FileSource concrete(file.path(), parser);

@@ -29,15 +29,22 @@ private:
     std::streambuf* m_old;
 };
 
-/* Sets a log level for the lifetime of the object, then restores the configured one */
+/* Sets a log level for the lifetime of the object, then puts back the previous one */
 class LevelOverride {
 public:
-    explicit LevelOverride(cdrp::LogLevel level) { cdrp::Logger::instance().setLevel(level); }
+    explicit LevelOverride(cdrp::LogLevel level)
+        : m_previous(cdrp::Logger::instance().level())
+    {
+        cdrp::Logger::instance().setLevel(level);
+    }
 
     ~LevelOverride()
     {
-        cdrp::Logger::instance().setLevel(cdrp::Logger::levelFromName(cdrp::cfg.log.level));
+        cdrp::Logger::instance().setLevel(m_previous);
     }
+
+private:
+    cdrp::LogLevel m_previous;
 };
 
 bool contains(const std::string& text, const std::string& needle)
