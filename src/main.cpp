@@ -14,19 +14,21 @@ using namespace cdrp;
 void run()
 {
     DirWatcher watcher(cfg.file.ready_dir, cfg.file.process_dir);
-    std::string record_path;
-    watcher.next_file(record_path);
-
     const PipeParser parser;
-    FileSource fs(record_path, parser);
-    std::vector<CdrRecord> out;
-    fs.next(out);
-    logInfo("[Processor] parsed " + std::to_string(out.size()) + " records");
+    std::string record_path;
+
+    while (watcher.next_file(record_path)) {
+        FileSource fs(record_path, parser);
+        std::vector<CdrRecord> out;
+        while (fs.next(out) == FileSource::Status::OK) {
+            logInfo("Processor", "parsed " + std::to_string(out.size()) + " records");
+        }
+    }
 }
 
 int main()
 {
-    logInfo("[Processor] starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
+    logInfo("Processor", "starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
 
     run();
     return 0;

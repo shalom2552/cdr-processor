@@ -5,6 +5,7 @@
 #include "util/mapped_file.hpp"
 #include "cdr_record.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <string>
 
@@ -27,11 +28,21 @@ private:
     const char* parse_header(const char* data, std::size_t length, Fileheader& header);
 
 private:
+    /* Log the parsed/rejected counts and elapsed time, once per file */
+    void log_summary();
+
+private:
     MappedFile m_map;
     const IParser& m_parser;
     Fileheader m_header;
     const char* m_pos = nullptr;
     const char* m_end = nullptr;
+
+    std::string m_name;
+    std::size_t m_parsed = 0;
+    std::size_t m_rejected = 0;
+    bool m_summed = false;
+    std::chrono::steady_clock::time_point m_started = std::chrono::steady_clock::now();
 };
 
 } // namespace cdrp

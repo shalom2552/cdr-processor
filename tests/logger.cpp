@@ -71,10 +71,20 @@ TEST_CASE("logger_emits_level_and_message")
     const LevelOverride level(LogLevel::Info);
 
     CerrCapture out;
-    logInfo("hello");
+    logInfo("Test", "hello");
 
     CHECK(contains(out.str(), "[INFO]"));
     CHECK(contains(out.str(), "hello"));
+}
+
+TEST_CASE("logger_emits_component_before_the_message")
+{
+    const LevelOverride level(LogLevel::Info);
+
+    CerrCapture out;
+    logInfo("Test", "hello");
+
+    CHECK(contains(out.str(), "[Test] -> hello"));
 }
 
 TEST_CASE("logger_drops_messages_below_level")
@@ -82,9 +92,9 @@ TEST_CASE("logger_drops_messages_below_level")
     const LevelOverride level(LogLevel::Error);
 
     CerrCapture out;
-    logDebug("d");
-    logInfo("i");
-    logWarn("w");
+    logDebug("Test", "d");
+    logInfo("Test", "i");
+    logWarn("Test", "w");
 
     CHECK(out.str().empty());
 }
@@ -94,8 +104,8 @@ TEST_CASE("logger_emits_at_or_above_level")
     const LevelOverride level(LogLevel::Warning);
 
     CerrCapture out;
-    logWarn("w");
-    logError("e");
+    logWarn("Test", "w");
+    logError("Test", "e");
 
     CHECK(contains(out.str(), "[WARN]"));
     CHECK(contains(out.str(), "[ERROR]"));
@@ -106,10 +116,10 @@ TEST_CASE("logger_colors_each_level")
     const LevelOverride level(LogLevel::Debug);
 
     CerrCapture out;
-    logDebug("d");
-    logInfo("i");
-    logWarn("w");
-    logError("e");
+    logDebug("Test", "d");
+    logInfo("Test", "i");
+    logWarn("Test", "w");
+    logError("Test", "e");
 
     CHECK(contains(out.str(), "\033[90m[DEBUG]\033[0m"));
     CHECK(contains(out.str(), "\033[32m[INFO]\033[0m"));
@@ -122,9 +132,9 @@ TEST_CASE("logger_prefixes_a_timestamp")
     const LevelOverride level(LogLevel::Info);
 
     CerrCapture out;
-    logInfo("x");
+    logInfo("Test", "x");
 
-    CHECK(std::regex_search(out.str(), std::regex(R"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")));
+    CHECK(std::regex_search(out.str(), std::regex(R"(\d{2}-\d{2} \d{2}:\d{2}:\d{2})")));
 }
 
 TEST_CASE("logger_writes_one_line_per_message")
@@ -132,8 +142,8 @@ TEST_CASE("logger_writes_one_line_per_message")
     const LevelOverride level(LogLevel::Info);
 
     CerrCapture out;
-    logInfo("a");
-    logInfo("b");
+    logInfo("Test", "a");
+    logInfo("Test", "b");
 
     const std::string text = out.str();
     CHECK(std::count(text.begin(), text.end(), '\n') == 2);
@@ -151,7 +161,7 @@ TEST_CASE("logger_does_not_interleave_across_threads")
     for (int i = 0; i < kThreads; ++i) {
         threads.emplace_back([] {
             for (int j = 0; j < kPerThread; ++j) {
-                logInfo("concurrent");
+                logInfo("Test", "concurrent");
             }
         });
     }

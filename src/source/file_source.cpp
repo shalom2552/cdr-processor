@@ -6,6 +6,7 @@
 #include <charconv>
 #include <cstddef>
 #include <cstring>
+#include <filesystem>
 #include <string_view>
 
 namespace cdrp {
@@ -13,21 +14,26 @@ namespace cdrp {
 FileSource::FileSource(const std::string& path, const IParser& parser)
     : m_map(path)
     , m_parser(parser)
+    , m_name(std::filesystem::path(path).filename().string())
 {
-    if (!m_map.ok() || m_map.empty()) {
-        logWarn("[FileSource] skipping unreadable file: " + path);
+    if (!m_map.ok()) {
+        logWarn("FileSource", "skipping unreadable file: " + path);
+        return;
+    }
+    if (m_map.empty()) {
+        logWarn("FileSource", "skipping empty file: " + path);
         return;
     }
 
     const char* data = parse_header(m_map.data(), m_map.size(), m_header);
     if (!data) {
-        logWarn("[FileSource] skipping file without a CDR header: " + path);
+        logWarn("FileSource", "skipping file without a CDR header: " + path);
         return;
     }
 
     m_pos = data;
     m_end = m_map.data() + m_map.size();
-    logInfo("[FileSource] reading " + path + ": " + m_header.format + ", "
+    logInfo("FileSource", "reading " + m_name + ": " + m_header.format + ", "
         + std::to_string(m_header.record_count) + " records");
 }
 
@@ -71,15 +77,32 @@ FileSource::Status FileSource::next(std::vector<CdrRecord>& out)
 
         if (auto record = m_parser.parse(line)) {
             out.push_back(*record);
+        } else {
+            ++m_rejected;
         }
     }
 
     if (out.empty()) {
+        log_summary();
         return Status::DONE;
     }
 
-    logDebug("[FileSource] batch of " + std::to_string(out.size()) + " records");
+    m_parsed += out.size();
+    logDebug("FileSource", "batch of " + std::to_string(out.size()) + " records");
     return Status::OK;
+}
+
+void FileSource::log_summary()
+{
+    if (m_summed || !m_end) { // !m_end: file never opened
+        return;
+    }
+    m_summed = true;
+
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - m_started);
+    logInfo("FileSource", "done " + m_name + ": " + std::to_string(m_parsed) + " parsed, "
+        + std::to_string(m_rejected) + " rejected, " + std::to_string(elapsed.count()) + "ms");
 }
 
 

@@ -84,7 +84,7 @@ bool parseDateTime(std::string_view date, std::string_view time, std::time_t& ou
 
 std::optional<CdrRecord> invalidLine(std::string_view line)
 {
-    logDebug("[PipeParser] invalid line: " + std::string(line));
+    logDebug("PipeParser", "invalid line: " + std::string(line));
     return std::nullopt;
 }
 

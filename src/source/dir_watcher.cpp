@@ -1,4 +1,5 @@
 #include "source/dir_watcher.hpp"
+#include "constants.hpp"
 #include "logger.hpp"
 
 #include <cerrno>
@@ -27,17 +28,17 @@ DirWatcher::DirWatcher(const std::string& source_dir, const std::string& target_
 
     m_fd = inotify_init1(IN_CLOEXEC);
     if (m_fd < 0) {
-        logError("[DirWatcher] inotify_init failed: " + std::string(std::strerror(errno)));
+        logError("DirWatcher", "inotify_init failed: " + std::string(std::strerror(errno)));
         return;
     }
     m_wd = inotify_add_watch(m_fd, m_source_dir.c_str(), IN_MOVED_TO);
     if (m_wd < 0) {
-        logError("[DirWatcher] cannot watch: " + m_source_dir + ": " + std::strerror(errno));
+        logError("DirWatcher", "cannot watch: " + m_source_dir + ": " + std::strerror(errno));
         close(m_fd);
         m_fd = -1;
         return;
     }
-    logInfo("[DirWatcher] watching: " + m_source_dir);
+    logInfo("DirWatcher", "watching: " + m_source_dir);
     sweep(m_target_dir, true);  // crash recovery: already claimed
     sweep(m_source_dir, false); // delivered before startup
 }
@@ -69,7 +70,7 @@ bool DirWatcher::next_file(std::string& path)
     }
 
     path = m_queue.front(); m_queue.pop_front();
-    logInfo("[DirWatcher] next_file: " + path);
+    logDebug("DirWatcher", "next_file: " + path);
     return true;
 }
 
@@ -78,11 +79,19 @@ bool DirWatcher::claim(const std::string& file_name)
     std::string source = (fs::path(m_source_dir) / file_name).string();
     std::string dest = (fs::path(m_target_dir) / file_name).string();
     if (std::rename(source.c_str(), dest.c_str()) != 0) {
-        logWarn("[DirWatcher] skipping file it could not claim: " + file_name);
+        // ENOENT means another worker claimed it first, which is expected.
+        if (errno == ENOENT) {
+            logDebug("DirWatcher", "already claimed: " + file_name);
+        } else {
+            logWarn("DirWatcher", "claim failed: " + file_name + ": " + std::strerror(errno));
+        }
         return false;
     }
     m_queue.push_back(dest);
-    logInfo("[DirWatcher] claim: " + file_name);
+    logInfo("DirWatcher", "claim: " + file_name);
+    if (m_queue.size() > kBacklogAlert) {
+        logDebug("DirWatcher", "backlog of " + std::to_string(m_queue.size()) + " files");
+    }
     return true;
 }
 
@@ -90,9 +99,9 @@ bool DirWatcher::ensure_dir(const std::string& dir)
 {
     std::error_code ec;
     if (fs::create_directories(dir, ec)) {
-        logInfo("[DirWatcher] created: " + dir);
+        logInfo("DirWatcher", "created: " + dir);
     } else if (ec || !fs::is_directory(dir, ec)) {
-        logError("[DirWatcher] cannot create: " + dir + ": " + ec.message());
+        logError("DirWatcher", "cannot create: " + dir + ": " + ec.message());
         return false;
     }
     return true;
@@ -101,7 +110,13 @@ bool DirWatcher::ensure_dir(const std::string& dir)
 void DirWatcher::sweep(const std::string& dir, bool claimed)
 {
     std::error_code ec;
-    for (const auto& entry : fs::directory_iterator(dir, ec)) {
+    const fs::directory_iterator entries(dir, ec);
+    if (ec) {
+        logError("DirWatcher", "scan failed: " + dir + ": " + ec.message());
+        return;
+    }
+
+    for (const auto& entry : entries) {
         if (!entry.is_regular_file()) {
             continue;
         } else if (claimed) {
@@ -109,9 +124,6 @@ void DirWatcher::sweep(const std::string& dir, bool claimed)
         } else {
             claim(entry.path().filename().string());
         }
-    }
-    if (ec) {
-        logWarn("[DirWatcher] scan failed: " + dir);
     }
 }
 
@@ -121,7 +133,7 @@ bool DirWatcher::read_events()
     ssize_t n = read(m_fd, buffer, sizeof(buffer));
 
     if (n <= 0) {
-        logError("[DirWatcher] inotify read failed");
+        logError("DirWatcher", "inotify read failed: " + std::string(std::strerror(errno)));
         return false;
     }
 

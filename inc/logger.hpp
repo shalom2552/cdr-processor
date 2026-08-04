@@ -18,8 +18,8 @@ class Logger {
 public:
     static Logger& instance();
 
-    /* Log a message at the specified level */
-    void log(LogLevel level, const std::string& message);
+    /* Log a message at the specified level, tagged with its component */
+    void log(LogLevel level, std::string_view component, const std::string& message);
 
     /* Set the logging level to one of the LogLevel enum values */
     void setLevel(LogLevel level);
@@ -31,7 +31,7 @@ public:
     static LogLevel levelFromName(std::string_view name);
 
 private:
-    Logger();
+    Logger() = default;
     ~Logger() = default;
 
     Logger(const Logger&) = delete;
@@ -42,20 +42,20 @@ private:
     std::atomic<LogLevel> m_level{LogLevel::Info};
 };
 
-inline void logInfo(const std::string& message) {
-    Logger::instance().log(cdrp::LogLevel::Info, message);
+inline void logInfo(std::string_view component, const std::string& message) {
+    Logger::instance().log(cdrp::LogLevel::Info, component, message);
 }
 
-inline void logWarn(const std::string& message) {
-    Logger::instance().log(cdrp::LogLevel::Warning, message);
+inline void logWarn(std::string_view component, const std::string& message) {
+    Logger::instance().log(cdrp::LogLevel::Warning, component, message);
 }
 
-inline void logError(const std::string& message) {
-    Logger::instance().log(cdrp::LogLevel::Error, message);
+inline void logError(std::string_view component, const std::string& message) {
+    Logger::instance().log(cdrp::LogLevel::Error, component, message);
 }
 
-inline void logDebug(const std::string& message) {
-    Logger::instance().log(cdrp::LogLevel::Debug, message);
+inline void logDebug(std::string_view component, const std::string& message) {
+    Logger::instance().log(cdrp::LogLevel::Debug, component, message);
 }
 
 } // namespace cdrp

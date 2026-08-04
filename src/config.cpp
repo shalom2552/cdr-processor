@@ -1,4 +1,5 @@
 #include "config.hpp"
+#include "logger.hpp"
 #include "third_party/toml.h"
 
 #include <stdexcept>
@@ -11,11 +12,21 @@ Config::Config()
 {
     load();
     validate();
+
+    Logger::instance().setLevel(Logger::levelFromName(log.level));
+    logDebug("Config", "loaded " + std::string(kConfigPath) + ": " + source.mode + " mode, "
+        + source.format + " format, " + log.level + " level, ready " + file.ready_dir);
 }
 
 void Config::load(std::string_view path)
 {
-    auto t = toml::parse_file(path);
+    toml::table t;
+    try {
+        t = toml::parse_file(path);
+    } catch (const toml::parse_error& e) {
+        logError("Config", "cannot parse " + std::string(path) + ": " + std::string(e.description()));
+        throw std::runtime_error("Configuration not loaded");
+    }
 
     conf = t["config"]["conf"].value_or<bool>(false);
 

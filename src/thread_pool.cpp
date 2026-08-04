@@ -22,7 +22,7 @@ ThreadPool::ThreadPool(std::size_t workers_count, std::size_t capacity)
         m_workers.emplace_back([this]() { run(); });
     }
 
-    logInfo("[ThreadPool] " + std::to_string(workers_count) + " workers, queue of "
+    logInfo("ThreadPool", std::to_string(workers_count) + " workers, queue of "
         + std::to_string(capacity));
 }
 
@@ -37,7 +37,7 @@ ThreadPool::~ThreadPool()
     for (auto& worker : m_workers) {
         worker.join();
     }
-    logDebug("[ThreadPool] all workers joined");
+    logDebug("ThreadPool", "all workers joined");
 }
 
 bool ThreadPool::submit(std::function<void()> task)
@@ -74,9 +74,9 @@ void ThreadPool::run()
         try {
             task();
         } catch (const std::exception& e) {
-            logError("[ThreadPool] task threw: " + std::string(e.what()));
+            logError("ThreadPool", "task threw: " + std::string(e.what()));
         } catch (...) {
-            logError("[ThreadPool] task threw an unknown exception");
+            logError("ThreadPool", "task threw an unknown exception");
         }
     }
 }

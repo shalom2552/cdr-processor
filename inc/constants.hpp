@@ -12,3 +12,6 @@ inline constexpr std::size_t kMaxMsisdnDigits = 15; // maximum digits in MSISDN
 
 // file source
 inline constexpr std::size_t kBatchSize = 4096;
+
+// dir watcher
+inline constexpr std::size_t kBacklogAlert = 16; // queued files before the backlog is logged
