@@ -26,10 +26,10 @@ MODE = SOURCE.get("mode", "")
 FORMAT = SOURCE.get("format", "pipe")
 if FORMAT != "pipe":
     raise SystemExit(f"this generator writes pipe records, config asks for '{FORMAT}'")
-RECORDS_DIR = os.path.join(ROOT, SOURCE.get("file", {}).get("dir", "records"))
-ROTATE_SECONDS = SOURCE.get("file", {}).get("rotate_seconds", 600)
+RECORDS_DIR = os.path.join(ROOT, SOURCE.get("file", {}).get("ready_dir", "records/ready_dir"))
 RABBIT_URL = SOURCE.get("rabbit", {}).get("url", "amqp://guest:guest@localhost/")
 RABBIT_QUEUE = SOURCE.get("rabbit", {}).get("queue", "cdr")
+ROTATE_SECONDS = CFG.get("generator", {}).get("rotate_seconds", 600)
 GEN_INTERVAL = CFG.get("generator", {}).get("gen_interval", 0.001)
 
 DIGITS = "0123456789"

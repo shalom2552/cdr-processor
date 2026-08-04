@@ -22,8 +22,10 @@ void Config::load(std::string_view path)
     source.mode = t["source"]["mode"].value_or<std::string>("file");
     source.format = t["source"]["format"].value_or<std::string>("pipe");
 
-    file.dir = t["source"]["file"]["dir"].value_or<std::string>("records");
-    file.rotate_seconds = t["source"]["file"]["rotate_seconds"].value_or<int>(600);
+    file.ready_dir = t["source"]["file"]["ready_dir"].value_or<std::string>("records/ready");
+    file.process_dir = t["source"]["file"]["process_dir"].value_or<std::string>("records/process");
+    file.done_dir = t["source"]["file"]["done_dir"].value_or<std::string>("records/done");
+    file.rotate_seconds = t["generator"]["rotate_seconds"].value_or<int>(600);
 
     rabbit.url = t["source"]["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
     rabbit.queue = t["source"]["rabbit"]["queue"].value_or<std::string>("cdr");
@@ -43,8 +45,8 @@ void Config::validate()
         std::string formats = "pipe";
         throw std::runtime_error("Invalid format: " + source.format + "\nValid formats are" + formats + ".");
     }
-    if (file.dir.empty()) {
-        throw std::runtime_error("File directory not set");
+    if (file.ready_dir.empty() || file.process_dir.empty() || file.done_dir.empty()) {
+        throw std::runtime_error("File directories not set");
     }
     if (file.rotate_seconds <= 0) {
         throw std::runtime_error("Rotate seconds must be greater than zero");

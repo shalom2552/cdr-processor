@@ -39,7 +39,9 @@ public:
     } source;
 
     struct {
-        std::string dir;
+        std::string ready_dir;
+        std::string process_dir;
+        std::string done_dir;
         int rotate_seconds = 0;
     } file;
 

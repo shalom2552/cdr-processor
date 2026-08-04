@@ -9,12 +9,14 @@ mode = "file"           # mode = "file" or "rabbit"
 format = "pipe"         # pipe is the only supported format
 
 [source.file]
-dir = "records"         # directory holding the .cdr files
-rotate_seconds = 600    # seconds per .cdr file
+ready_dir  = "records/ready"       # directory holding the .cdr files
+process_dir = "records/.processing" # directory holding fils in process
+done_dir    = "records/done"        # directory holding processed files
 
 [source.rabbit]
 url = "amqp://guest:guest@localhost/"
-queue = "cdr"          # RabbitMQ queue name for cdr messages
+queue = "cdr"           # RabbitMQ queue name for cdr messages
 
 [generator]
+rotate_seconds = 600    # seconds per .cdr file
 gen_interval = 0.001    # seconds between generated records

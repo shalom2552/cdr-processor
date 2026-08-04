@@ -46,6 +46,12 @@ that throw are logged, not fatal. Shutdown drains the queue and joins the worker
 is the first one: it maps a `.cdr` file, checks the `CDR|<format>|<count>` header, and
 runs the lines through the parser. A queue source drops in behind the same interface.
 
+### Dir Watcher
+
+Watches the input directory with inotify and hands out one file at a time. Files arrive
+by rename, so whatever shows up is complete. Claiming a file is another rename into the
+work directory, which keeps two processes off the same file and survives a crash.
+
 ### Mapped File
 
 Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,

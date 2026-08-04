@@ -1,0 +1,53 @@
+#pragma once
+
+#include <string>
+#include <deque>
+
+namespace cdrp {
+
+/**
+ * Watches an input directory for CDR files delivered by rename.
+ * Yields one claimed file path at a time.
+ * Blocking; run on its own thread.
+ */
+class DirWatcher {
+public:
+    DirWatcher(const std::string& source_dir, const std::string& target_dir);
+    ~DirWatcher();
+
+    DirWatcher(const DirWatcher&) = delete;
+    DirWatcher& operator=(const DirWatcher&) = delete;
+
+    bool ok() const;
+
+    /**
+     * Finds the next file to process.
+     * Returns true if a new file was claimed, false on error.
+     * Blocks until one is available or the watcher is closed.
+     */
+    bool next_file(std::string& path);
+
+private:
+    /* Create dir if missing. Returns false if it cannot be created. */
+    static bool ensure_dir(const std::string& dir);
+
+    /* Atomically move a file to target_dir and add to the queue. */
+    bool claim(const std::string& file_name);
+
+    /* Sweep dir at startup and add to the queue, moves to target_dir if not claimed. */
+    void sweep(const std::string& dir, bool claimed);
+
+    /* Read events from the inotify fd, blocks until events are available. */
+    bool read_events();
+
+private:
+    std::string m_source_dir;
+    std::string m_target_dir;
+    std::deque<std::string> m_queue;
+
+    int m_fd = -1;
+    int m_wd = -1;
+};
+
+} // namespace cdrp
+

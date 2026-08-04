@@ -68,6 +68,25 @@ A file that will not map, or that does not start with a good header, logs a warn
 yields no records. Bad lines inside a good file are skipped by the parser, one bad line
 does not lose the rest.
 
+## Dir Watcher
+
+`inc/source/dir_watcher.hpp`, `src/source/dir_watcher.cpp`.
+
+The sender writes a file somewhere else and renames it into the input directory, so a
+file that appears there is already whole. `DirWatcher` puts an inotify watch on that
+directory for `IN_MOVED_TO` and hands out one path at a time through `next_file`, which
+blocks until something arrives. It is not thread safe and expects a thread of its own.
+
+A file is claimed by renaming it from the input directory into the target directory.
+The rename is atomic on the same filesystem, so two processes watching the same input
+cannot both win the same file, and a file being worked on is no longer visible to a
+watcher that starts later. A rename that fails logs a warning and the file is left alone.
+
+Startup sweeps both directories: the target first, whose files are already claimed and
+go straight on the queue, then the input, whose files are claimed as if they had just
+arrived. That is what picks work back up after a crash. A watch that cannot be set up
+leaves the watcher not `ok()`, and `next_file` returns false instead of blocking.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.
