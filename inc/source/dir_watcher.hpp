@@ -12,18 +12,29 @@ namespace cdrp {
  */
 class DirWatcher {
 public:
+    /**
+     * Constructor, creates both directories if missing, starts the inotify watch
+     * and sweeps files left from a previous run.
+     *
+     * @param source_dir: directory files are delivered to
+     * @param target_dir: directory claimed files are moved to
+     */
     DirWatcher(const std::string& source_dir, const std::string& target_dir);
     ~DirWatcher();
 
     DirWatcher(const DirWatcher&) = delete;
     DirWatcher& operator=(const DirWatcher&) = delete;
 
+    /* True while the watcher is usable */
     bool ok() const;
 
     /**
      * Finds the next file to process.
      * Returns true if a new file was claimed, false on error.
      * Blocks until one is available or the watcher is closed.
+     *
+     * @param path: set to the claimed file path, in target_dir
+     * @return true if a file was claimed, false if closed or failed
      */
     bool next_file(std::string& path);
 

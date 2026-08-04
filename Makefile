@@ -20,7 +20,7 @@ DEPS = $(OBJ:.o=.d) $(TEST_OBJ:.o=.d)
 
 .PHONY: all build run test clean debug release
 
-all: build
+all: $(BIN) $(TEST_BIN)
 
 build: $(BIN)
 

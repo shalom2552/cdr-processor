@@ -11,23 +11,23 @@
 
 namespace cdrp {
 
-FileSource::FileSource(const std::string& path, const IParser& parser)
-    : m_map(path)
+FileSource::FileSource(const std::string& file_path, const IParser& parser)
+    : m_map(file_path)
     , m_parser(parser)
-    , m_name(std::filesystem::path(path).filename().string())
+    , m_name(std::filesystem::path(file_path).filename().string())
 {
     if (!m_map.ok()) {
-        logWarn("FileSource", "skipping unreadable file: " + path);
+        logWarn("FileSource", "skipping unreadable file: " + file_path);
         return;
     }
     if (m_map.empty()) {
-        logWarn("FileSource", "skipping empty file: " + path);
+        logWarn("FileSource", "skipping empty file: " + file_path);
         return;
     }
 
     const char* data = parse_header(m_map.data(), m_map.size(), m_header);
     if (!data) {
-        logWarn("FileSource", "skipping file without a CDR header: " + path);
+        logWarn("FileSource", "skipping file without a CDR header: " + file_path);
         return;
     }
 

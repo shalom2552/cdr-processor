@@ -19,7 +19,21 @@ struct Fileheader {
 
 class FileSource : public ICdrSource {
 public:
-    FileSource(const std::string& path, const IParser& parser);
+    /**
+     * Constructor, maps the file and reads its CDR header.
+     * A file that cannot be mapped or has no header yields no records.
+     *
+     * @param file_path: the file to read
+     * @param parser: the parser applied to every line
+     */
+    FileSource(const std::string& file_path, const IParser& parser);
+
+    /**
+     * Reads the next batch of up to kBatchSize records.
+     *
+     * @param out: the vector filled with the parsed records
+     * @return OK while records remain, DONE once the file is drained
+     */
 
     Status next(std::vector<CdrRecord>& out) override;
 
