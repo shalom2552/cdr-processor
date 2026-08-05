@@ -1,0 +1,65 @@
+"""Entry point: `python3 -m generator [-p | -f | -r]`, or `make gen ARGS=-f`."""
+
+from __future__ import annotations
+
+import argparse
+import signal
+import sys
+import time
+
+from . import sinks
+from .console import status
+from .records import pipe_record, random_cdr
+from .sequence import Sequence
+from .settings import SEQ_FILE, Settings
+from .sinks.base import Sink, StopEmitting
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="python3 -m generator",
+                                     description="generate synthetic CDR records")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-p", "--print", action="store_true", help="print records to the screen")
+    group.add_argument("-f", "--file", action="store_true", help="write records to rotating files")
+    group.add_argument("-r", "--rabbit", action="store_true", help="stream records to RabbitMQ")
+    return parser.parse_args()
+
+
+def chosen_mode(args: argparse.Namespace, settings: Settings) -> str:
+    """A command line flag wins, else source.mode from config.toml, else print."""
+    if args.print:
+        return "print"
+    if args.file:
+        return "file"
+    if args.rabbit:
+        return "rabbit"
+    return settings.mode
+
+
+def generate(sink: Sink, seq: Sequence, interval: float) -> None:
+    """Feed records to the sink until the user stops us or the sink says it is done."""
+    try:
+        while True:
+            sink.emit(pipe_record(random_cdr(seq.next())))
+            time.sleep(interval)
+    except (KeyboardInterrupt, StopEmitting):
+        pass
+
+
+def main() -> None:
+    args = parse_args()
+    settings = Settings.load()
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+    with Sequence(SEQ_FILE) as seq:
+        status("config", f"gen_interval={settings.gen_interval}s  seq={seq.value}")
+        try:
+            with sinks.build(chosen_mode(args, settings), settings) as sink:
+                generate(sink, seq, settings.gen_interval)
+        finally:
+            if seq.generated:                   # a run that never started says nothing
+                status("stop", f"{seq.generated} records generated")
+
+
+if __name__ == "__main__":
+    main()

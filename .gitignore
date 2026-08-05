@@ -1,8 +1,9 @@
 
 # simulation files
-scripts/.seq
+generator/.seq
 records/
 
 # build artifacts
 build/
 dist/
+__pycache__/

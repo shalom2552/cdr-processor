@@ -23,7 +23,7 @@ RMQ = $(THIRD_PARTY)/rabbitmq-c
 RMQ_SRCS = $(wildcard $(RMQ)/src/*.c)
 RMQ_OBJS = $(patsubst $(RMQ)/src/%.c,$(BUILD)/rmq/%.o,$(RMQ_SRCS))
 
-.PHONY: all build run test clean debug release generate
+.PHONY: all build run test clean debug release gen
 
 all: $(BIN) $(TEST_BIN)
 
@@ -55,7 +55,7 @@ run: $(BIN)
 test: $(TEST_BIN)
 	./$(TEST_BIN)
 
-generate:
+gen:
 	@python3 -m $(CDR_GEN) $(ARGS)
 
 debug:   CXXFLAGS += -g -O0 -fsanitize=address,undefined

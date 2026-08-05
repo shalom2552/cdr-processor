@@ -32,7 +32,7 @@ sudo pacman -S python-pika # Arch Linux
 2. Run the python generator to generate CDR records:
 
 ```bash
-make generate # Using make
+make gen # Using make
 # Or
 python3 -m generator # Using python
 ```

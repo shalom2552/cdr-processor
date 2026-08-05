@@ -9,7 +9,7 @@ mode = "file"           # mode = "file" or "rabbit"
 format = "pipe"         # pipe is the only supported format
 
 [source.file]
-readers     = 4                     # number of readers threads
+readers     = 4                     # number of readers threads, 0 for max
 ready_dir   = "records/ready/"      # directory holding the .cdr files
 process_dir = "records/.processing" # directory holding fils in process
 done_dir    = "records/done"        # directory holding processed files
