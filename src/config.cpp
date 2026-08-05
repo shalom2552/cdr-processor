@@ -59,6 +59,11 @@ void Config::validate()
     if (file.ready_dir.empty() || file.process_dir.empty() || file.done_dir.empty()) {
         throw std::runtime_error("File directories not set");
     }
+    for (std::string* dir : {&file.ready_dir, &file.process_dir, &file.done_dir}) {
+        if (dir->back() != '/') {
+            dir->push_back('/');
+        }
+    }
     if (file.rotate_seconds <= 0) {
         throw std::runtime_error("Rotate seconds must be greater than zero");
     }
