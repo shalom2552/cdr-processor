@@ -34,7 +34,7 @@ sudo pacman -S python-pika # Arch Linux
 ```bash
 make generate # Using make
 # Or
-python3 scripts/cdr_pipe_generator.py # Using python
+python3 -m generator # Using python
 ```
 
 ### Processor
@@ -47,7 +47,8 @@ make run
 
 ## Testing
 
-This project uses the [doctest](https://github.com/onqtam/doctest) library for testing.
+This project uses the [doctest](https://github.com/onqtam/doctest) library for testing,
+vendored at `third_party/doctest.h`.
 
 To run tests:
 
@@ -57,7 +58,8 @@ make test
 
 ## Configuration
 
-Using [tomlplusplus](https://github.com/marzer/tomlplusplus) library for configuration parsing.
+Using [tomlplusplus](https://github.com/marzer/tomlplusplus) library for configuration
+parsing, vendored at `third_party/toml.h`.
 
 Condig file is located at project root `config.toml` and contains the following parameters:
 

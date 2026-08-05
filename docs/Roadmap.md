@@ -8,7 +8,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 0 — Skeleton
 **Goal:** buildable repo, nothing works yet.
  
-- [x] Repo layout: `src/ inc/ tests/ scripts/ docs/`, `config.toml` at the root
+- [x] Repo layout: `src/ inc/ tests/ generator/ scripts/ docs/ third_party/`, `config.toml` at the root
 - [x] Makefile (`all`, `test`, `clean`, `debug`, `release`), C++17, `-Wall -Wextra -pedantic`
 - [x] Unit test harness wired (doctest / gtest, header-only preferred)
 - [x] CI: build + test on push
@@ -39,7 +39,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 - [x] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
 - [ ] Concurrent multi-file: 2–4 files in flight, one worker per file
 - [ ] Move to `done/` on success, `failed/` on parse error
-- [x] `scripts/cdr_pipe_generator.py` — generates synthetic CDR files at configurable rate/size
+- [x] `generator/` — python package that generates synthetic CDR files at configurable rate/size
 **Done when:** the generator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
  
 **Question:** rename-into-directory or size-polling for completion detection? Rename is atomic and race-free — push for it if you control the delivery side.

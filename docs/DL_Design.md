@@ -1,7 +1,8 @@
 # Detailed Level Design
 
 Core stuff lives at the top of `inc/` and `src/`. Anything bigger than one file gets a
-folder of its own.
+folder of its own. Vendored libraries stay out of both and live under `third_party/`:
+single headers at its top level, multi-file libraries in a folder of their own.
 
 ## CDR Record
 
@@ -66,7 +67,7 @@ CDR|pipe|2379
 ```
 
 The tag says it is a CDR file, then the format the records are written in, then how many
-there are. `scripts/cdr_pipe_generator.py` writes it and refuses to run unless
+there are. The generator writes it and refuses to run unless
 `source.format` is `pipe`, since it only knows how to write pipe records.
 
 `FileSource` maps the file, reads that header, and hands each line to the parser. It walks

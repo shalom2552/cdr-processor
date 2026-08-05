@@ -1,6 +1,6 @@
 #include "config.hpp"
 #include "logger.hpp"
-#include "third_party/toml.h"
+#include "toml.h"
 
 #include <cstddef>
 #include <stdexcept>
