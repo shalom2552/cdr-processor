@@ -4,21 +4,13 @@
 #include "cdr_record.hpp"
 #include "config.hpp"
 #include "logger.hpp"
+#include "util/fs.hpp"
 
 #include <atomic>
 #include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
-
-namespace {
-
-std::string basename_of(const std::string& path) {
-    const auto pos = path.find_last_of('/');
-    return pos == std::string::npos ? path : path.substr(pos + 1);
-}
-
-} // namespace
 
 namespace cdrp {
 
@@ -49,6 +41,10 @@ bool FileIngestor::start()
 
     if (!m_watcher.ok()) {
         logError("FileIngestor", "watcher init failed");
+        return false;
+    }
+
+    if (!ensure_dir(cfg.file.done_dir) || !ensure_dir(cfg.file.fail_dir)) {
         return false;
     }
 

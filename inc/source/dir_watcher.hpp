@@ -45,9 +45,6 @@ public:
     void wake();
 
 private:
-    /* Create dir if missing. Returns false if it cannot be created. */
-    static bool ensure_dir(const std::string& dir);
-
     /* Atomically move a file to target_dir and add to the queue. */
     bool claim(const std::string& file_name);
 

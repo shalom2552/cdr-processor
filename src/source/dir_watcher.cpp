@@ -1,6 +1,7 @@
 #include "source/dir_watcher.hpp"
 #include "constants.hpp"
 #include "logger.hpp"
+#include "util/fs.hpp"
 
 #include <cerrno>
 #include <cstdint>
@@ -115,18 +116,6 @@ bool DirWatcher::claim(const std::string& file_name)
     logInfo("DirWatcher", "claim: " + file_name);
     if (m_queue.size() > kBacklogAlert) {
         logDebug("DirWatcher", "backlog of " + std::to_string(m_queue.size()) + " files");
-    }
-    return true;
-}
-
-bool DirWatcher::ensure_dir(const std::string& dir)
-{
-    std::error_code ec;
-    if (fs::create_directories(dir, ec)) {
-        logInfo("DirWatcher", "created: " + dir);
-    } else if (ec || !fs::is_directory(dir, ec)) {
-        logError("DirWatcher", "cannot create: " + dir + ": " + ec.message());
-        return false;
     }
     return true;
 }

@@ -2,11 +2,11 @@
 #include "cdr_record.hpp"
 #include "constants.hpp"
 #include "logger.hpp"
+#include "util/fs.hpp"
 
 #include <charconv>
 #include <cstddef>
 #include <cstring>
-#include <filesystem>
 #include <string_view>
 
 namespace cdrp {
@@ -14,7 +14,7 @@ namespace cdrp {
 FileSource::FileSource(const std::string& file_path, const IParser& parser)
     : m_map(file_path)
     , m_parser(parser)
-    , m_name(std::filesystem::path(file_path).filename().string())
+    , m_name(basename_of(file_path))
 {
     if (!m_map.ok()) {
         logWarn("FileSource", "skipping unreadable file: " + file_path);
