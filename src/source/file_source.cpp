@@ -18,16 +18,19 @@ FileSource::FileSource(const std::string& file_path, const IParser& parser)
 {
     if (!m_map.ok()) {
         logWarn("FileSource", "skipping unreadable file: " + file_path);
+        m_failed = true;
         return;
     }
     if (m_map.empty()) {
         logWarn("FileSource", "skipping empty file: " + file_path);
+        m_failed = true;
         return;
     }
 
     const char* data = parse_header(m_map.data(), m_map.size(), m_header);
     if (!data) {
         logWarn("FileSource", "skipping file without a CDR header: " + file_path);
+        m_failed = true;
         return;
     }
 
@@ -67,6 +70,11 @@ const char* FileSource::parse_header(const char* data, std::size_t length, Fileh
 FileSource::Status FileSource::next(std::vector<CdrRecord>& out)
 {
     out.clear();
+
+    if (m_failed) {
+        m_failed = false;
+        return Status::FAIL;
+    }
 
     while (m_pos < m_end && out.size() < kBatchSize) {
         const char* new_line = static_cast<const char*>(std::memchr(m_pos, '\n', m_end - m_pos));

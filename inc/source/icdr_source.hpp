@@ -1,7 +1,8 @@
 #pragma once
 
-#include <vector>
 #include "cdr_record.hpp"
+
+#include <vector>
 
 namespace cdrp {
 

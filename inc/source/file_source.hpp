@@ -55,6 +55,7 @@ private:
     std::string m_name;
     std::size_t m_parsed = 0;
     std::size_t m_rejected = 0;
+    bool m_failed = false;
     bool m_summed = false;
     std::chrono::steady_clock::time_point m_started = std::chrono::steady_clock::now();
 };
