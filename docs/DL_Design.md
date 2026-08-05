@@ -87,6 +87,10 @@ go straight on the queue, then the input, whose files are claimed as if they had
 arrived. That is what picks work back up after a crash. A watch that cannot be set up
 leaves the watcher not `ok()`, and `next_file` returns false instead of blocking.
 
+The wait is over `poll` on the inotify fd and an eventfd the watcher owns. `wake()`
+writes to that eventfd, which unblocks a waiting `next_file` and makes it return false;
+it is the one thread-safe entry point, so another thread can end the wait to shut down.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.

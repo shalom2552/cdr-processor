@@ -50,7 +50,8 @@ runs the lines through the parser. A queue source drops in behind the same inter
 
 Watches the input directory with inotify and hands out one file at a time. Files arrive
 by rename, so whatever shows up is complete. Claiming a file is another rename into the
-work directory, which keeps two processes off the same file and survives a crash.
+work directory, which keeps two processes off the same file and survives a crash. The
+blocking wait can be woken from another thread to shut the watcher down.
 
 ### Mapped File
 

@@ -31,12 +31,18 @@ public:
     /**
      * Finds the next file to process.
      * Returns true if a new file was claimed, false on error.
-     * Blocks until one is available or the watcher is closed.
+     * Blocks until one is available, the watcher is closed, or wake() is called.
      *
      * @param path: set to the claimed file path, in target_dir
-     * @return true if a file was claimed, false if closed or failed
+     * @return true if a file was claimed, false if woken, closed or failed
      */
     bool next_file(std::string& path);
+
+    /**
+     * Interrupts a blocked next_file() so it returns false.
+     * Thread-safe; intended to be called from another thread to request shutdown.
+     */
+    void wake();
 
 private:
     /* Create dir if missing. Returns false if it cannot be created. */
@@ -48,7 +54,8 @@ private:
     /* Sweep dir at startup and add to the queue, moves to target_dir if not claimed. */
     void sweep(const std::string& dir, bool claimed);
 
-    /* Read events from the inotify fd, blocks until events are available. */
+    /* Wait on the inotify and event fds, then drain any inotify events.
+       Returns false if woken via wake() or on error. */
     bool read_events();
 
 private:
@@ -58,6 +65,7 @@ private:
 
     int m_fd = -1;
     int m_wd = -1;
+    int m_event_fd = -1;
 };
 
 } // namespace cdrp
