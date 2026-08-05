@@ -137,7 +137,7 @@ TEST_CASE("file_source_skips_bad_lines_and_keeps_the_rest")
     CHECK(records[1].sequence == 3);
 }
 
-TEST_CASE("file_source_yields_nothing_for_a_header_it_does_not_know")
+TEST_CASE("file_source_fails_on_a_header_it_does_not_know")
 {
     const PipeParser parser;
 
@@ -146,7 +146,7 @@ TEST_CASE("file_source_yields_nothing_for_a_header_it_does_not_know")
         FileSource source(file.path(), parser);
 
         std::vector<CdrRecord> records;
-        CHECK(source.next(records) == ICdrSource::Status::DONE);
+        CHECK(source.next(records) == ICdrSource::Status::FAIL);
         CHECK(records.empty());
     }
 }
@@ -162,13 +162,13 @@ TEST_CASE("file_source_yields_nothing_for_a_header_only_file")
     CHECK(records.empty());
 }
 
-TEST_CASE("file_source_yields_nothing_for_a_missing_file")
+TEST_CASE("file_source_fails_on_a_missing_file")
 {
     const PipeParser parser;
     FileSource source("/no/such/path/at/all.cdr", parser);
 
     std::vector<CdrRecord> records;
-    CHECK(source.next(records) == ICdrSource::Status::DONE);
+    CHECK(source.next(records) == ICdrSource::Status::FAIL);
     CHECK(records.empty());
 }
 

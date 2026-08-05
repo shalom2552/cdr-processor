@@ -37,6 +37,16 @@ and joined with `timegm`, so the result is UTC.
 
 A line that does not fit is logged at debug level and skipped.
 
+### Parser Factory
+
+`inc/parser/parser_factory.hpp`, `src/parser/parser_factory.cpp`.
+
+`ParserFactory` maps a format name to the parser that reads it. A single shared instance
+registers the parsers it knows at construction, and `createParser()` builds a fresh one by
+name, or returns null when the name is not registered; `hasParser()` answers without
+building one. The name comes from `source.format`, so a new format is one `registerParser`
+call and a class behind `IParser`, with nothing else to touch.
+
 ## Source
 
 `inc/source/icdr_source.hpp`.
@@ -91,6 +101,37 @@ The wait is over `poll` on the inotify fd and an eventfd the watcher owns. `wake
 writes to that eventfd, which unblocks a waiting `next_file` and makes it return false;
 it is the one thread-safe entry point, so another thread can end the wait to shut down.
 
+## Ingestor
+
+`inc/ingest/iingestor.hpp`.
+
+`IIngestor::start()` begins turning delivered work into records and returns false if it
+could not begin; `stop()` ends it and joins whatever it started. Where the work comes from
+is the implementation's business, so a queue ingestor later slots in behind the same call.
+
+### File Ingestor
+
+`inc/ingest/file_ingestor.hpp`, `src/ingest/file_ingestor.cpp`.
+
+`FileIngestor` ties the directory watcher, the file source, and a thread pool together. A
+feeder thread claims one file at a time from the watcher and submits it to the pool; each
+worker reads the file through a `FileSource` and hands every batch to the sink. The parser
+for `source.format` is built once at construction from the `ParserFactory`, so an unknown
+format makes `start()` fail before any file is claimed rather than losing files later. That
+one parser serves every worker, since parsing is const and holds no state.
+
+A drained file is moved to the done directory, or to the failed directory when the source
+reports a failure. `stop()` wakes the watcher, joins the feeder, and drains the pool, so no
+file is left half processed.
+
+## Sink
+
+`inc/sink/isink.hpp`.
+
+`ISink::consume()` takes ownership of a batch of records. It is the far end of ingestion:
+the ingestor's workers call it from several threads at once, so an implementation owns its
+own locking. No sink is built yet.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.
@@ -123,7 +164,7 @@ Output goes to stderr. A mutex keeps lines from mixing when threads log at once.
 
 ## Thread Pool
 
-`inc/thread_pool.hpp`, `src/thread_pool.cpp`.
+`inc/util/thread_pool.hpp`, `src/util/thread_pool.cpp`.
 
 Fixed workers, bounded queue. Built with a worker count and a queue size, both must be
 above 0 or the constructor throws.
@@ -148,7 +189,7 @@ is declared last so the threads start after the rest of the state is live.
 The pool is not copyable. It is safe to submit from many threads at once, and from
 inside a running task.
 
-Tests are in `tests/thread_pool.cpp`. They only use the public API and every wait is
+Tests are in `tests/util/thread_pool.cpp`. They only use the public API and every wait is
 bounded, so a broken pool fails instead of hanging the suite.
 
 ## Mapped File

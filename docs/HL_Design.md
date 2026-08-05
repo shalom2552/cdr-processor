@@ -24,6 +24,12 @@ never went through.
 `PipeParser` reads the pipe format the generator writes. Bad lines are dropped and
 logged.
 
+### Parser Factory
+
+`ParserFactory` maps a format name to a parser. It registers what it knows at startup and
+builds one by name, or returns nothing when the name is unknown. The name comes from
+`config.toml`, so adding a format touches nothing that already works.
+
 ### Config
 
 Parses `config.toml` once at startup, validates it, exposes it as the global `cfg`.
@@ -52,6 +58,18 @@ Watches the input directory with inotify and hands out one file at a time. Files
 by rename, so whatever shows up is complete. Claiming a file is another rename into the
 work directory, which keeps two processes off the same file and survives a crash. The
 blocking wait can be woken from another thread to shut the watcher down.
+
+### Ingestor
+
+`IIngestor` starts and stops the flow of records from a source into a sink. `FileIngestor`
+drives the file path: a feeder thread claims files from the watcher and a thread pool reads
+each one through a `FileSource` into the sink. The parser is chosen once at startup, so a
+bad format is refused before any file moves. Drained files go to done, failures to failed.
+
+### Sink
+
+`ISink` is where parsed records land. Workers call `consume()` from several threads at once,
+so a sink handles its own locking. None is built yet.
 
 ### Mapped File
 

@@ -6,6 +6,9 @@
 
 namespace cdrp {
 
+/**
+ * Interface for CDR records sources.
+ */
 class ICdrSource {
 public:
     enum class Status {

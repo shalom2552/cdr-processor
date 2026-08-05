@@ -1,36 +1,34 @@
 #include "config.hpp"
 #include "logger.hpp"
-#include "source/dir_watcher.hpp"
-
-#include <string>
-#include <vector>
-
 using namespace cdrp;
 
-#include "source/file_source.hpp"
-#include "parser/pipe_parser.hpp"
-#include "source/dir_watcher.hpp"
-#include "cdr_record.hpp"
-void run()
-{
-    DirWatcher watcher(cfg.file.ready_dir, cfg.file.process_dir);
-    const PipeParser parser;
-    std::string record_path;
+#include <csignal>
 
-    while (watcher.next_file(record_path)) {
-        FileSource fs(record_path, parser);
-        std::vector<CdrRecord> out;
-        while (fs.next(out) == FileSource::Status::OK) {
-            logInfo("Processor", "parsed " + std::to_string(out.size()) + " records");
-        }
-    }
-}
+#include "sink/isink.hpp"
+#include "ingest/file_ingestor.hpp"
+
+class CountingSink : public ISink {
+public:
+    void consume(std::vector<CdrRecord>& batch) override { m_total.fetch_add(batch.size(), std::memory_order_relaxed); }
+    std::atomic<std::size_t> m_total = 0;
+};
+
+std::atomic<bool> g_stop = false;
 
 int main()
 {
-    logInfo("Processor", "starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
+    std::signal(SIGINT, [](int) { g_stop.store(true); });
+    logInfo("Main", "starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
 
-    run();
+    CountingSink sink;
+    FileIngestor ingestor(sink);
+
+    if (!ingestor.start()) { return 1; }
+    while (!g_stop.load()) { pause(); } // wake on SIGINT
+
+    ingestor.stop();
+    logInfo("Main", "consumed " + std::to_string(sink.m_total.load()) + " records");
+    logInfo("Main", "finished");
     return 0;
 }
 

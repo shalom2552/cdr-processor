@@ -2,6 +2,7 @@
 
 #include "constants.hpp"
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -39,9 +40,11 @@ public:
     } source;
 
     struct {
+        std::size_t readers;
         std::string ready_dir;
         std::string process_dir;
         std::string done_dir;
+        std::string fail_dir;
         int rotate_seconds = 0;
     } file;
 

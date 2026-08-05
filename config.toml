@@ -9,9 +9,11 @@ mode = "file"           # mode = "file" or "rabbit"
 format = "pipe"         # pipe is the only supported format
 
 [source.file]
-ready_dir  = "records/ready"       # directory holding the .cdr files
+readers     = 4                     # number of readers threads
+ready_dir   = "records/ready/"      # directory holding the .cdr files
 process_dir = "records/.processing" # directory holding fils in process
 done_dir    = "records/done"        # directory holding processed files
+fail_dir    = "records/failed"      # directory holding failed files
 
 [source.rabbit]
 url = "amqp://guest:guest@localhost/"
