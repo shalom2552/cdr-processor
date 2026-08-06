@@ -1,8 +1,9 @@
 #pragma once
-#include <cstdint>
-#include <string>
 
 #include "rabbitmq-c/amqp.h"
+
+#include <cstdint>
+#include <string>
 
 namespace cdrp {
 

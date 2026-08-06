@@ -1,4 +1,5 @@
 #include "source/dir_watcher.hpp"
+
 #include "constants.hpp"
 #include "logger.hpp"
 #include "util/fs.hpp"

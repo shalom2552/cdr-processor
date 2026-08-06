@@ -1,4 +1,5 @@
 #include "source/rabbit_source.hpp"
+
 #include "cdr_record.hpp"
 #include "logger.hpp"
 #include "source/rabbit_conn.hpp"

@@ -1,9 +1,5 @@
 #pragma once
 
-#include "cdr_record.hpp"
-
-#include <vector>
-
 namespace cdrp {
 
 class IIngestor {

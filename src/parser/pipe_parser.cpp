@@ -1,5 +1,6 @@
-#include "constants.hpp"
 #include "parser/pipe_parser.hpp"
+
+#include "constants.hpp"
 #include "cdr_record.hpp"
 #include "logger.hpp"
 
