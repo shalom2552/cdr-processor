@@ -24,7 +24,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 - [x] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
 - [x] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
 - [x] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
-- [ ] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")
+- [x] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")
 **Done when:** parser round-trips a 10k-line fixture with zero allocations per record beyond the record itself.
  
 **Warning:** decide IMSI/MSISDN storage now. Switching from `std::string` to integer keys later touches every map, every hash, every test.

@@ -7,7 +7,7 @@ over an API.
 ## RoadMap
 
 - [x] Phase 0 - Buildable repo skeleton & CI
-- [ ] Phase 1 - Core primitives, parser, config
+- [x] Phase 1 - Core primitives, parser, config
 - [ ] Phase 2 - Stream & ingest CDR files
 - [ ] Phase 3 - Subscriber, operator & graph aggregation
 - [ ] Phase 4 - REST query gateway API
@@ -15,35 +15,97 @@ over an API.
 - [ ] Phase 6 - Distributed harvesters & clients
 - [ ] Phase 7 - Profiling, tests & deliverables
 
-## Build Instructions
+## Prerequisites
 
-Run the generator first to generate CDR records.
+- `g++` with C++17 and `make`
+- `python3.11` or newer for the generator (it reads `config.toml` with `tomllib`)
+- `pika` and a running RabbitMQ broker, only for the rabbit source
 
-### Generator
+The AMQP client (rabbitmq-c) is vendored at `third_party/rabbitmq-c` and built by the
+Makefile, so nothing needs to be installed for the C++ side.
 
-1. First install `pika` if using `rabbitmq`:
+## Make Targets
 
-```bash
-pip install pika # Ubuntu/Debian
-# Or
-sudo pacman -S python-pika # Arch Linux
+| Target | What it does |
+| --- | --- |
+| `make build` | builds the processor into `build/main` |
+| `make run` | builds and runs the processor |
+| `make test` | builds and runs the unit tests |
+| `make gen` | runs the python generator in the configured mode |
+| `make debug` | builds with `-g -O0` and the address/undefined sanitizers |
+| `make release` | builds with `-O2 -DNDEBUG` |
+| `make clean` | removes `build/` |
+
+## Sources
+
+`[source] mode` in `config.toml` picks where records come from, `file` or `rabbit`. Both
+sides read it, so the one switch points the generator and the processor at the same place.
+`pipe` is the only supported format.
+
+### File Source
+
+```toml
+[source]
+mode = "file"
+
+[source.file]
+readers     = 4                     # reader threads, 0 for one per core
+ready_dir   = "records/ready/"      # the generator drops .cdr files here
+process_dir = "records/.processing" # claimed files, one per reader
+done_dir    = "records/done"        # drained files
+fail_dir    = "records/failed"      # files that did not parse
+
+[generator]
+rotate_seconds = 600                # seconds of records per .cdr file
+gen_interval = 0.001                # seconds between records
 ```
 
-2. Run the python generator to generate CDR records:
+Two terminals:
 
 ```bash
-make gen # Using make
-# Or
-python3 -m generator # Using python
+make gen    # writes records/ready/<timestamp>.cdr
+make run    # consumes them
 ```
 
-### Processor
+The generator renames complete `.cdr` files into the ready directory, so nothing half
+written shows up. The processor watches that directory, renames a file into the
+processing directory to claim it, and moves it to done, or to failed when it does not
+parse. The directories are created on the first run.
 
-To run the processor:
+### Rabbit Source
+
+Start a broker and install the generator's client:
 
 ```bash
-make run
+docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+# or, with rabbitmq installed on the host
+sudo systemctl start rabbitmq
+
+pip install pika            # Ubuntu/Debian
+sudo pacman -S python-pika  # Arch Linux
 ```
+
+```toml
+[source]
+mode = "rabbit"
+
+[source.rabbit]
+url       = "amqp://guest:guest@localhost/" # broker, with credentials
+queue     = "cdr"                           # queue the records go through
+consumers = 4                               # consumer threads, 0 for one per core
+```
+
+Two terminals:
+
+```bash
+make gen    # publishes to the queue
+make run    # consumes it
+```
+
+Each record is one message on a durable queue. A consumer owns one connection and one
+thread, and acks a message once it is handled, so anything left unacked is redelivered.
+`scripts/consume.py` drains the queue on its own, for checking what the generator put
+there without running the processor.
 
 ## Testing
 
@@ -61,12 +123,35 @@ make test
 Using [tomlplusplus](https://github.com/marzer/tomlplusplus) library for configuration
 parsing, vendored at `third_party/toml.h`.
 
-Condig file is located at project root `config.toml` and contains the following parameters:
+Config file is located at project root `config.toml`, read once at startup and validated,
+so a bad value stops the processor before any record moves.
 
 ```toml
-[ingestor]
-file_path = "/path/to/cdr/files"
-batch_size = 10000
-threads = 4
+[config]
+conf = true             # sanity check, fails on false
+
+[log]
+level = "info"          # debug, info, warn, error, none
+
+[source]
+mode = "file"           # file or rabbit
+format = "pipe"         # pipe is the only supported format
+
+[source.file]
+readers     = 4
+ready_dir   = "records/ready/"
+process_dir = "records/.processing"
+done_dir    = "records/done"
+fail_dir    = "records/failed"
+
+[source.rabbit]
+url       = "amqp://guest:guest@localhost/"
+queue     = "cdr"
+consumers = 4
+
+[generator]
+rotate_seconds = 600    # seconds per .cdr file
+gen_interval = 0.001    # seconds between generated records
 ```
 
+Batch size is not configurable, it is `kBatchSize` in `inc/constants.hpp`.
