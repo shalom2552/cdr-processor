@@ -1,6 +1,6 @@
 #include "doctest.h"
 #include "constants.hpp"
-#include "parser/pipe_parser.hpp"
+#include "parser/csv_parser.hpp"
 #include "source/file_source.hpp"
 
 #include <filesystem>
@@ -41,7 +41,7 @@ std::string record(int sequence)
 /* A file body: the given header line, then count records */
 std::string fileWith(std::size_t count, const char* header = nullptr)
 {
-    std::string text = header ? header : "CDR|pipe|" + std::to_string(count) + "\n";
+    std::string text = header ? header : "CDR|csv|" + std::to_string(count) + "\n";
     for (std::size_t i = 0; i < count; ++i) {
         text += record(static_cast<int>(i) + 1) + "\n";
     }
@@ -55,7 +55,7 @@ using namespace cdrp;
 TEST_CASE("file_source_reads_every_record_of_a_file")
 {
     const TempFile file(fileWith(3));
-    const PipeParser parser;
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
@@ -70,7 +70,7 @@ TEST_CASE("file_source_reads_every_record_of_a_file")
 TEST_CASE("file_source_reports_done_once_the_file_runs_out")
 {
     const TempFile file(fileWith(2));
-    const PipeParser parser;
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
@@ -82,7 +82,7 @@ TEST_CASE("file_source_reports_done_once_the_file_runs_out")
 TEST_CASE("file_source_clears_the_output_between_batches")
 {
     const TempFile file(fileWith(2));
-    const PipeParser parser;
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records(5);
@@ -95,7 +95,7 @@ TEST_CASE("file_source_splits_a_long_file_into_batches")
 {
     const std::size_t total = kFileBatchSize + 10;
     const TempFile file(fileWith(total));
-    const PipeParser parser;
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
@@ -112,8 +112,8 @@ TEST_CASE("file_source_splits_a_long_file_into_batches")
 
 TEST_CASE("file_source_reads_a_last_record_without_a_trailing_newline")
 {
-    const TempFile file("CDR|pipe|2\n" + record(1) + "\n" + record(2));
-    const PipeParser parser;
+    const TempFile file("CDR|csv|2\n" + record(1) + "\n" + record(2));
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
@@ -125,8 +125,8 @@ TEST_CASE("file_source_reads_a_last_record_without_a_trailing_newline")
 
 TEST_CASE("file_source_skips_bad_lines_and_keeps_the_rest")
 {
-    const TempFile file("CDR|pipe|3\n" + record(1) + "\ngarbage line\n" + record(3) + "\n");
-    const PipeParser parser;
+    const TempFile file("CDR|csv|3\n" + record(1) + "\ngarbage line\n" + record(3) + "\n");
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
@@ -139,9 +139,9 @@ TEST_CASE("file_source_skips_bad_lines_and_keeps_the_rest")
 
 TEST_CASE("file_source_fails_on_a_header_it_does_not_know")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
-    for (const char* header : { "", "records:3\n", "CDR|pipe\n", "CDR|pipe|many\n" }) {
+    for (const char* header : { "", "records:3\n", "CDR|csv\n", "CDR|csv|many\n" }) {
         const TempFile file(fileWith(3, header));
         FileSource source(file.path(), parser);
 
@@ -153,8 +153,8 @@ TEST_CASE("file_source_fails_on_a_header_it_does_not_know")
 
 TEST_CASE("file_source_yields_nothing_for_a_header_only_file")
 {
-    const TempFile file("CDR|pipe|0\n");
-    const PipeParser parser;
+    const TempFile file("CDR|csv|0\n");
+    const CsvParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
@@ -164,7 +164,7 @@ TEST_CASE("file_source_yields_nothing_for_a_header_only_file")
 
 TEST_CASE("file_source_fails_on_a_missing_file")
 {
-    const PipeParser parser;
+    const CsvParser parser;
     FileSource source("/no/such/path/at/all.cdr", parser);
 
     std::vector<CdrRecord> records;
@@ -175,7 +175,7 @@ TEST_CASE("file_source_fails_on_a_missing_file")
 TEST_CASE("file_source_is_usable_through_the_icdr_source_interface")
 {
     const TempFile file(fileWith(1));
-    const PipeParser parser;
+    const CsvParser parser;
     FileSource concrete(file.path(), parser);
     ICdrSource& source = concrete;
 

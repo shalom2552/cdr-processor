@@ -40,7 +40,8 @@ Makefile, so nothing needs to be installed for the C++ side.
 
 `[source] mode` in `config.toml` picks where records come from, `file` or `rabbit`. Both
 sides read it, so the one switch points the generator and the processor at the same place.
-`pipe` is the only supported format.
+`csv` is the only supported format, and `[source.csv] separator` is the single character
+its fields are split on.
 
 ### File Source
 
@@ -141,7 +142,10 @@ level = "info"          # debug, info, warn, error, none
 
 [source]
 mode = "file"           # file or rabbit
-format = "pipe"         # pipe is the only supported format
+format = "csv"          # csv is the only supported format
+
+[source.csv]
+separator = "|"         # one character separating the record fields
 
 [source.file]
 readers     = 4

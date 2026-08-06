@@ -21,7 +21,7 @@ never went through.
 ### Parser
 
 `IParser` is the interface: a line goes in, a `CdrRecord` or nothing comes out.
-`PipeParser` reads the pipe format the generator writes. Bad lines are dropped and
+`CsvParser` reads the csv format the generator writes. Bad lines are dropped and
 logged.
 
 ### Parser Factory

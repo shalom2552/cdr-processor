@@ -123,17 +123,17 @@ private:
     std::set<std::string> m_delivered;
 };
 
-/* One well formed pipe record, sequence sets it apart from its neighbours */
+/* One well formed csv record, sequence sets it apart from its neighbours */
 std::string record(uint64_t sequence)
 {
     return std::to_string(sequence)
         + "|425020528409010|35-209900-176148-1|MOC|972528409042|12/07/2026|09:57:09|3314|||262040162782277|496221540";
 }
 
-/* A file body: the pipe header line, then records base+1 .. base+count */
+/* A file body: the csv header line, then records base+1 .. base+count */
 std::string fileWith(uint64_t base, std::size_t count)
 {
-    std::string text = "CDR|pipe|" + std::to_string(count) + "\n";
+    std::string text = "CDR|csv|" + std::to_string(count) + "\n";
     for (std::size_t i = 0; i < count; ++i) {
         text += record(base + i + 1) + "\n";
     }
@@ -252,7 +252,7 @@ TEST_CASE("file_ingestor_disposes_a_header_only_file_without_emitting_records")
     FileIngestor ingestor(sink);
 
     REQUIRE(ingestor.start());
-    dirs.deliver("empty.cdr", "CDR|pipe|0\n");
+    dirs.deliver("empty.cdr", "CDR|csv|0\n");
 
     /* No records to wait on, so poll the disposition under the same bound */
     const auto deadline = std::chrono::steady_clock::now() + kTimeout;

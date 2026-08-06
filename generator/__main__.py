@@ -9,7 +9,7 @@ import time
 
 from . import sinks
 from .console import status
-from .records import pipe_record, random_cdr
+from .records import csv_record, random_cdr
 from .sequence import Sequence
 from .settings import SEQ_FILE, Settings
 from .sinks.base import Sink, StopEmitting
@@ -36,16 +36,16 @@ def chosen_mode(args: argparse.Namespace, settings: Settings) -> str:
     return settings.mode
 
 
-def generate(sink: Sink, seq: Sequence, interval: float) -> None:
+def generate(sink: Sink, seq: Sequence, interval: float, sep: str) -> None:
     """Feed records to the sink until the user stops us or the sink says it is done."""
     emit, nxt = sink.emit, seq.next
     try:
         if interval <= 0:                       # a sleep call per record halves the rate
             while True:
-                emit(pipe_record(random_cdr(nxt())))
+                emit(csv_record(random_cdr(nxt()), sep))
         else:
             while True:
-                emit(pipe_record(random_cdr(nxt())))
+                emit(csv_record(random_cdr(nxt()), sep))
                 time.sleep(interval)
     except KeyboardInterrupt:
         status("stop", "stopping...")
@@ -63,7 +63,7 @@ def main() -> None:
         started = time.perf_counter()
         try:
             with sinks.build(chosen_mode(args, settings), settings) as sink:
-                generate(sink, seq, settings.gen_interval)
+                generate(sink, seq, settings.gen_interval, settings.separator)
         finally:
             elapsed = time.perf_counter() - started
             if seq.generated:                   # a run that never started says nothing

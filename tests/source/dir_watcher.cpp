@@ -148,7 +148,7 @@ TEST_CASE("dir_watcher_gives_up_instead_of_blocking_when_it_is_not_ok")
 TEST_CASE("dir_watcher_claims_a_file_left_in_the_source_dir")
 {
     const TempDirs dirs;
-    write_file(dirs.source() / "old.cdr", "CDR|pipe|0\n");
+    write_file(dirs.source() / "old.cdr", "CDR|csv|0\n");
 
     auto watcher = std::make_shared<DirWatcher>(dirs.source().string(), dirs.target().string());
     const Claim claim = next_within(watcher);
@@ -157,7 +157,7 @@ TEST_CASE("dir_watcher_claims_a_file_left_in_the_source_dir")
     REQUIRE(claim.ok);
     CHECK(fs::path(claim.path).parent_path() == dirs.target());
     CHECK(fs::exists(claim.path));
-    CHECK(read_file(claim.path) == "CDR|pipe|0\n");
+    CHECK(read_file(claim.path) == "CDR|csv|0\n");
     CHECK_FALSE(fs::exists(dirs.source() / "old.cdr"));
 }
 
@@ -167,7 +167,7 @@ TEST_CASE("dir_watcher_claims_a_file_delivered_after_it_starts")
     auto watcher = std::make_shared<DirWatcher>(dirs.source().string(), dirs.target().string());
     REQUIRE(watcher->ok());
 
-    deliver(dirs, dirs.source(), "new.cdr", "CDR|pipe|0\n");
+    deliver(dirs, dirs.source(), "new.cdr", "CDR|csv|0\n");
     const Claim claim = next_within(watcher);
 
     REQUIRE(claim.answered);
@@ -180,7 +180,7 @@ TEST_CASE("dir_watcher_claims_a_file_delivered_after_it_starts")
 TEST_CASE("dir_watcher_picks_up_files_left_in_the_target_dir")
 {
     const TempDirs dirs;
-    write_file(dirs.target() / "half_done.cdr", "CDR|pipe|0\n");
+    write_file(dirs.target() / "half_done.cdr", "CDR|csv|0\n");
 
     auto watcher = std::make_shared<DirWatcher>(dirs.source().string(), dirs.target().string());
     const Claim claim = next_within(watcher);

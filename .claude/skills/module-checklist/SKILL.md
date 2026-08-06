@@ -25,7 +25,7 @@ gets named in the report; the rest still happen.
 
 The `.hpp` gives the API. Reading the `.cpp` first makes the tests mirror its bugs.
 
-Match one sibling for style: `tests/parser/pipe_parser.cpp`, `src/util/mapped_file.cpp`.
+Match one sibling for style: `tests/parser/csv_parser.cpp`, `src/util/mapped_file.cpp`.
 
 ## 2. Tests
 

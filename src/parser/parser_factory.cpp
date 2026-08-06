@@ -1,6 +1,7 @@
 #include "parser/parser_factory.hpp"
 
-#include "parser/pipe_parser.hpp"
+#include "parser/csv_parser.hpp"
+#include "config.hpp"
 #include "logger.hpp"
 
 #include <utility>
@@ -9,7 +10,7 @@ namespace cdrp {
 
 ParserFactory::ParserFactory()
 {
-    registerParser("pipe", []() { return std::make_unique<PipeParser>(); });
+    registerParser("csv", []() { return std::make_unique<CsvParser>(cfg.csv.separator); });
 }
 
 ParserFactory& ParserFactory::instance()

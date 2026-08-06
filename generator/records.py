@@ -1,4 +1,4 @@
-"""Synthetic CDR records and the pipe wire format `PipeParser` reads. A different format
+"""Synthetic CDR records and the csv wire format `CsvParser` reads. A different format
 means another formatter here and another parser on the C++ side."""
 
 from __future__ import annotations
@@ -72,17 +72,18 @@ def random_cdr(seq: int) -> Cdr:
     )
 
 
-def pipe_record(cdr: Cdr) -> str:
-    """One record as 12 pipe separated fields, empty where a field does not apply."""
+def csv_record(cdr: Cdr, sep: str) -> str:
+    """One record as 12 separated fields, empty where a field does not apply."""
     w = cdr.when                                # strftime costs more than the fields do
     date = f"{w.day:02d}/{w.month:02d}/{w.year}"
     clock = f"{w.hour:02d}:{w.minute:02d}:{w.second:02d}"
     rx = "" if cdr.bytes_rx is None else cdr.bytes_rx
     tx = "" if cdr.bytes_tx is None else cdr.bytes_tx
-    return (f"{cdr.seq}|{cdr.imsi}|{cdr.imei}|{cdr.usage}|{cdr.msisdn}|{date}|{clock}"
-            f"|{cdr.duration}|{rx}|{tx}|{cdr.second_party_imsi}|{cdr.second_party_msisdn}")
+    return sep.join((str(cdr.seq), cdr.imsi, cdr.imei, cdr.usage, cdr.msisdn, date, clock,
+                     str(cdr.duration), str(rx), str(tx),
+                     cdr.second_party_imsi, cdr.second_party_msisdn))
 
 
-def pipe_header(fmt: str, count: int) -> str:
+def csv_header(fmt: str, count: int) -> str:
     """The one line header every .cdr file opens with, checked by `FileSource`."""
     return f"CDR|{fmt}|{count}"

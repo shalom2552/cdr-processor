@@ -40,6 +40,10 @@ public:
     } source;
 
     struct {
+        char separator;
+    } csv;
+
+    struct {
         std::size_t readers;
         std::string ready_dir;
         std::string process_dir;

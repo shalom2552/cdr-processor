@@ -8,15 +8,20 @@
 
 namespace cdrp {
 
-class PipeParser : public IParser {
+class CsvParser : public IParser {
 public:
+    explicit CsvParser(char separator = '|');
+
     /**
-     * Parses one pipe separated CDR line.
+     * Parses one separated CDR line.
      *
      * @param line: a single record line, without its newline
      * @return the record, or nothing if the line is malformed
      */
     std::optional<CdrRecord> parse(std::string_view line) const override;
+
+private:
+    char m_sep;
 };
 
 } // namespace cdrp

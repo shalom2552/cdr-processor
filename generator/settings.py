@@ -14,13 +14,14 @@ ROOT = PACKAGE_DIR.parent
 CONFIG_FILE = ROOT / "config.toml"
 SEQ_FILE = PACKAGE_DIR / ".seq"
 
-SUPPORTED_FORMAT = "pipe"
+SUPPORTED_FORMAT = "csv"
 
 
 @dataclass(frozen=True)
 class Settings:
     mode: str               # empty when config.toml does not set one
     fmt: str
+    separator: str
     ready_dir: Path
     rabbit_url: str
     rabbit_queue: str
@@ -46,10 +47,16 @@ class Settings:
             fail(f"this generator writes '{SUPPORTED_FORMAT}' records, config asks for '{fmt}'",
                  f'set format = "{SUPPORTED_FORMAT}" under [source] in config.toml')
 
+        separator = source.get("csv", {}).get("separator", "|")
+        if len(separator) != 1:
+            fail(f"the separator must be one character, config asks for '{separator}'",
+                 'set separator = "|" under [source.csv] in config.toml')
+
         gen = cfg.get("generator", {})
         return cls(
             mode=source.get("mode", ""),
             fmt=fmt,
+            separator=separator,
             ready_dir=ROOT / source.get("file", {}).get("ready_dir", "records/ready/"),
             rabbit_url=source.get("rabbit", {}).get("url", "amqp://guest:guest@localhost/"),
             rabbit_queue=source.get("rabbit", {}).get("queue", "cdr"),

@@ -44,12 +44,12 @@ TEST_CASE("parser_factory_is_neither_copyable_nor_copy_assignable")
     CHECK_FALSE(std::is_copy_assignable<ParserFactory>::value);
 }
 
-TEST_CASE("parser_factory_has_the_pipe_parser_registered_by_default")
+TEST_CASE("parser_factory_has_the_csv_parser_registered_by_default")
 {
     ParserFactory& factory = ParserFactory::instance();
 
-    CHECK(factory.hasParser("pipe"));
-    CHECK(factory.createParser("pipe") != nullptr);
+    CHECK(factory.hasParser("csv"));
+    CHECK(factory.createParser("csv") != nullptr);
 }
 
 TEST_CASE("parser_factory_reports_an_unregistered_name_as_absent")

@@ -19,6 +19,7 @@ Config::Config()
     Logger::instance().setLevel(Logger::levelFromName(log.level));
     logDebug("Config", "loaded " + std::string(kConfigPath));
     logDebug("Config", "source: " + source.mode + " mode, " + source.format + " format");
+    logDebug("Config", "csv: " + std::string(1, csv.separator) + " separator");
     logDebug("Config", "file: " + std::to_string(file.readers) + " readers, ready " + file.ready_dir
         + ", process " + file.process_dir);
     logDebug("Config", "file: done " + file.done_dir + ", failed " + file.fail_dir
@@ -41,7 +42,9 @@ void Config::load(std::string_view path)
     conf = t["config"]["conf"].value_or<bool>(false);
 
     source.mode = t["source"]["mode"].value_or<std::string>("file");
-    source.format = t["source"]["format"].value_or<std::string>("pipe");
+    source.format = t["source"]["format"].value_or<std::string>("csv");
+
+    csv.separator = t["source"]["csv"]["separator"].value_or<std::string>("|")[0];
 
     file.rotate_seconds = t["generator"]["rotate_seconds"].value_or<int>(600);
     file.readers = t["source"]["file"]["readers"].value_or<std::size_t>(4);
@@ -65,9 +68,12 @@ void Config::validate()
     if (source.mode != "file" && source.mode != "rabbit") {
         throw std::runtime_error("Invalid mode: " + source.mode + "\nValid modes are file and rabbit.");
     }
-    if (source.format != "pipe" && source.format != "json") {
-        std::string formats = "pipe";
+    if (source.format != "csv") {
+        std::string formats = "csv";
         throw std::runtime_error("Invalid format: " + source.format + "\nValid formats are" + formats + ".");
+    }
+    if (source.format == "csv" && csv.separator == '\0') {
+        throw std::runtime_error("Separator not set");
     }
     if (file.ready_dir.empty() || file.process_dir.empty() || file.done_dir.empty() || file.fail_dir.empty() ) {
         throw std::runtime_error("File directories not set");

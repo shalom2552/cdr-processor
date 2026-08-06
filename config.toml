@@ -1,13 +1,51 @@
+# ---------------------------
+# cdr-processor configuration
+# ---------------------------
+#
+# This file consists of lines of the form:
+#
+#   name = value
+#
+# Comments are introduced with "#" anywhere on a line, and the comment beside a
+# setting says what it accepts.
+#
+# It is read once at startup, by the processor and by the python generator, from
+# the working directory. A change takes effect on the next run, there is no reload.
+#
+# Two settings decide which of the sections below are read at all:
+#
+#   mode = "file"     reads [source.file]      format = "csv"    reads [source.csv]
+#        = "rabbit"   reads [source.rabbit]
+#
+# The file source walks each file through these directories: it takes one from
+# ready_dir, renames it into process_dir while it is read, and leaves it in
+# done_dir or fail_dir at the end.
+#
+# A thread count of 0 means one thread per core.
+#
+
+#################################### CONFIG ####################################
+
 [config]
 conf = true             # senaty check, fails on false
+
+###################################### LOG #####################################
 
 [log]
 level = "info"          # debug, info, warn, error, none
 
+##################################### SOURCE ###################################
+
+# Where the records come from, and how a record is written.
+
 [source]
-# mode = "rabbit"           # mode = "file" or "rabbit"
 mode = "file"           # mode = "file" or "rabbit"
-format = "pipe"         # pipe is the only supported format
+format = "csv"          # csv is the only supported format
+
+[source.csv]
+separator = "|"         # one character separating the record fields
+
+################################## FILE SOURCE #################################
 
 [source.file]
 readers     = 4                     # number of readers threads, 0 for max
@@ -16,10 +54,14 @@ process_dir = "records/.processing" # directory holding fils in process
 done_dir    = "records/done"        # directory holding processed files
 fail_dir    = "records/failed"      # directory holding failed files
 
+################################# RABBIT SOURCE ################################
+
 [source.rabbit]
 url = "amqp://guest:guest@localhost/"
 queue = "cdr"           # RabbitMQ queue name for cdr messages
 consumers = 4           # number of consumer threads, 0 for max
+
+################################### GENERATOR ##################################
 
 [generator]
 rotate_seconds = 600    # seconds per .cdr file

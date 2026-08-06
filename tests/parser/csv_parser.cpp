@@ -1,8 +1,9 @@
 #include "doctest.h"
 #include "constants.hpp"
 #include "parser/iparser.hpp"
-#include "parser/pipe_parser.hpp"
+#include "parser/csv_parser.hpp"
 
+#include <algorithm>
 #include <ctime>
 #include <memory>
 #include <string>
@@ -58,7 +59,7 @@ using namespace cdrp;
 
 TEST_CASE("parser_reads_every_field_of_a_voice_record")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const auto record = parser.parse(kVoiceLine);
 
@@ -78,7 +79,7 @@ TEST_CASE("parser_reads_every_field_of_a_voice_record")
 
 TEST_CASE("parser_reads_every_field_of_a_data_record")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const auto record = parser.parse(kDataLine);
 
@@ -93,7 +94,7 @@ TEST_CASE("parser_reads_every_field_of_a_data_record")
 
 TEST_CASE("parser_maps_every_usage_type")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const struct {
         const char* text;
@@ -114,7 +115,7 @@ TEST_CASE("parser_maps_every_usage_type")
 
 TEST_CASE("parser_rejects_an_unknown_usage_type")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 3, "MOX")).has_value());
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 3, "moc")).has_value());
@@ -123,7 +124,7 @@ TEST_CASE("parser_rejects_an_unknown_usage_type")
 
 TEST_CASE("parser_rejects_a_wrong_field_count")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const std::string tooFew = "2519|425020528409010|35-209900-176148-1|MOC|972528409042|"
                                "12/07/2026|09:57:09|3314|||262040162782277";
@@ -135,7 +136,7 @@ TEST_CASE("parser_rejects_a_wrong_field_count")
 
 TEST_CASE("parser_rejects_an_empty_line")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse("").has_value());
     CHECK_FALSE(parser.parse("|||||||||||").has_value());
@@ -143,14 +144,14 @@ TEST_CASE("parser_rejects_an_empty_line")
 
 TEST_CASE("parser_rejects_a_line_without_separators")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse("not a cdr record at all").has_value());
 }
 
 TEST_CASE("parser_rejects_non_numeric_numeric_fields")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 0, "abc")).has_value());
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 1, "42502052840901X")).has_value());
@@ -161,7 +162,7 @@ TEST_CASE("parser_rejects_non_numeric_numeric_fields")
 
 TEST_CASE("parser_rejects_missing_mandatory_fields")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 0, "")).has_value());  // sequence
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 1, "")).has_value());  // subscriber IMSI
@@ -172,7 +173,7 @@ TEST_CASE("parser_rejects_missing_mandatory_fields")
 
 TEST_CASE("parser_rejects_an_imsi_longer_than_15_digits")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 1, "4250205284090100")).has_value());
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 10, "4250205284090100")).has_value());
@@ -180,7 +181,7 @@ TEST_CASE("parser_rejects_an_imsi_longer_than_15_digits")
 
 TEST_CASE("parser_rejects_an_msisdn_longer_than_15_digits")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 4, "9725284090421234")).has_value());
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 11, "9725284090421234")).has_value());
@@ -188,7 +189,7 @@ TEST_CASE("parser_rejects_an_msisdn_longer_than_15_digits")
 
 TEST_CASE("parser_accepts_a_15_digit_imsi_and_msisdn")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     std::string line = withField(kVoiceLine, 1, "425020528409010");
     line = withField(line, 4, "972528409042123");
@@ -202,7 +203,7 @@ TEST_CASE("parser_accepts_a_15_digit_imsi_and_msisdn")
 
 TEST_CASE("parser_rejects_a_malformed_date")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 5, "2026/07/12")).has_value());
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 5, "12-07-2026")).has_value());
@@ -214,7 +215,7 @@ TEST_CASE("parser_rejects_a_malformed_date")
 
 TEST_CASE("parser_rejects_a_malformed_time")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 6, "09:57")).has_value());
     CHECK_FALSE(parser.parse(withField(kVoiceLine, 6, "9:57:09")).has_value());
@@ -225,7 +226,7 @@ TEST_CASE("parser_rejects_a_malformed_time")
 
 TEST_CASE("parser_keeps_date_and_time_together")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     std::string line = withField(kVoiceLine, 5, "01/02/2020");
     line = withField(line, 6, "23:59:59");
@@ -238,7 +239,7 @@ TEST_CASE("parser_keeps_date_and_time_together")
 
 TEST_CASE("parser_keeps_the_imei_verbatim")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const auto record = parser.parse(withField(kVoiceLine, 2, "35-209900-176148-1"));
 
@@ -248,7 +249,7 @@ TEST_CASE("parser_keeps_the_imei_verbatim")
 
 TEST_CASE("parser_treats_empty_optional_fields_as_zero")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     std::string line = withField(kVoiceLine, 8, "");
     line = withField(line, 9, "");
@@ -266,7 +267,7 @@ TEST_CASE("parser_treats_empty_optional_fields_as_zero")
 
 TEST_CASE("parser_reads_a_zero_duration_for_unsuccessful_calls")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     for (const char* type : { "U", "B", "X", "SMS-MO", "SMS-MT" }) {
         std::string line = withField(kVoiceLine, 3, type);
@@ -281,7 +282,7 @@ TEST_CASE("parser_reads_a_zero_duration_for_unsuccessful_calls")
 
 TEST_CASE("parser_reads_large_counters")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     std::string line = withField(kDataLine, 0, "18446744073709551615");
     line = withField(line, 8, "4294967296");
@@ -297,7 +298,7 @@ TEST_CASE("parser_reads_large_counters")
 
 TEST_CASE("parser_is_usable_through_the_iparser_interface")
 {
-    const std::unique_ptr<IParser> parser = std::make_unique<PipeParser>();
+    const std::unique_ptr<IParser> parser = std::make_unique<CsvParser>();
 
     const auto record = parser->parse(kVoiceLine);
 
@@ -307,7 +308,7 @@ TEST_CASE("parser_is_usable_through_the_iparser_interface")
 
 TEST_CASE("parser_is_stateless_across_calls")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const auto first = parser.parse(kVoiceLine);
     CHECK_FALSE(parser.parse("garbage").has_value());
@@ -322,7 +323,7 @@ TEST_CASE("parser_is_stateless_across_calls")
 
 TEST_CASE("parser_reads_a_record_out_of_a_larger_buffer")
 {
-    const PipeParser parser;
+    const CsvParser parser;
 
     const std::string buffer = kVoiceLine + "\n" + kDataLine + "\n";
     const std::string_view line(buffer.data(), kVoiceLine.size());
@@ -331,6 +332,27 @@ TEST_CASE("parser_reads_a_record_out_of_a_larger_buffer")
 
     REQUIRE(record.has_value());
     CHECK(record->sequence == 2519);
+}
+
+TEST_CASE("parser_reads_a_line_written_with_the_configured_separator")
+{
+    const CsvParser parser(';');
+
+    std::string line = kVoiceLine;
+    std::replace(line.begin(), line.end(), '|', ';');
+
+    const auto record = parser.parse(line);
+
+    REQUIRE(record.has_value());
+    CHECK(record->sequence == 2519);
+    CHECK(record->subscriberImei == "35-209900-176148-1");
+}
+
+TEST_CASE("parser_rejects_a_line_separated_by_another_character")
+{
+    const CsvParser parser(';');
+
+    CHECK_FALSE(parser.parse(kVoiceLine).has_value());
 }
 
 TEST_CASE("record_field_count_matches_the_configured_constant")

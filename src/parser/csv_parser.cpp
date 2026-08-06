@@ -1,4 +1,4 @@
-#include "parser/pipe_parser.hpp"
+#include "parser/csv_parser.hpp"
 
 #include "constants.hpp"
 #include "cdr_record.hpp"
@@ -85,20 +85,25 @@ bool parseDateTime(std::string_view date, std::string_view time, std::time_t& ou
 
 std::optional<CdrRecord> invalidLine(std::string_view line)
 {
-    logDebug("PipeParser", "invalid line: " + std::string(line));
+    logDebug("CsvParser", "invalid line: " + std::string(line));
     return std::nullopt;
 }
 
 } // namespace
 
-std::optional<CdrRecord> PipeParser::parse(std::string_view line) const
+CsvParser::CsvParser(char separator)
+    : m_sep(separator)
+{
+}
+
+std::optional<CdrRecord> CsvParser::parse(std::string_view line) const
 {
     std::array<std::string_view, kFieldCount> fields;
     std::optional<UsageType> usage;
     CdrRecord record;
 
     // stops on first fail
-    const bool ok = split(line, '|', fields)
+    const bool ok = split(line, m_sep, fields)
         && parseU64(fields[0], record.sequence)
         && parseU64(fields[1], record.subscriberImsi, false, kMaxImsiDigits)
         && (usage = parseUsage(fields[3])).has_value()

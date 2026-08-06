@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ..console import fail, ok, status
-from ..records import pipe_header
+from ..records import csv_header
 from ..settings import Settings
 from .base import Sink
 
@@ -50,7 +50,7 @@ class FileSink(Sink):
         tmp = path.with_suffix(".cdr.tmp")
         try:
             with open(tmp, "w") as fh:
-                fh.write(pipe_header(self.settings.fmt, len(records)) + "\n")
+                fh.write(csv_header(self.settings.fmt, len(records)) + "\n")
                 fh.write("\n".join(records) + "\n")
             os.replace(tmp, path)
         except OSError as exc:

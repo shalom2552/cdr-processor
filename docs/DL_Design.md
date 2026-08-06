@@ -20,13 +20,14 @@ no second party.
 
 ## Parser
 
-`inc/parser/iparser.hpp`, `inc/parser/pipe_parser.hpp`, `src/parser/pipe_parser.cpp`.
+`inc/parser/iparser.hpp`, `inc/parser/csv_parser.hpp`, `src/parser/csv_parser.cpp`.
 
 `IParser::parse()` takes a line and returns an empty optional when the line is bad.
 Another format means another class behind the same interface, picked by `source.format`
 in `config.toml`.
 
-`PipeParser` reads the generator format, 12 fields split on `|`:
+`CsvParser` reads the generator format, 12 fields split on the separator from
+`source.csv.separator`, `|` by default:
 
 ```
 seq|imsi|imei|usage|msisdn|DD/MM/YYYY|HH:MM:SS|duration|rx|tx|sp_imsi|sp_msisdn
@@ -63,12 +64,12 @@ slots in behind the same call.
 Every `.cdr` file opens with one line:
 
 ```
-CDR|pipe|2379
+CDR|csv|2379
 ```
 
 The tag says it is a CDR file, then the format the records are written in, then how many
 there are. The generator writes it and refuses to run unless
-`source.format` is `pipe`, since it only knows how to write pipe records.
+`source.format` is `csv`, since it only knows how to write csv records.
 
 `FileSource` maps the file, reads that header, and hands each line to the parser. It walks
 the mapping with `memchr` looking for newlines, so a line is a `string_view` into the
