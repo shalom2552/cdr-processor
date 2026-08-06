@@ -79,6 +79,22 @@ A file that will not map, or that does not start with a good header, logs a warn
 yields no records. Bad lines inside a good file are skipped by the parser, one bad line
 does not lose the rest.
 
+### Rabbit Conn
+
+`inc/source/rabbit_conn.hpp`, `src/source/rabbit_conn.cpp`.
+
+`RabbitConn` is the AMQP plumbing on its own: it parses the url, connects, logs in, opens
+one channel, sets the prefetch and starts consuming the queue. `consume` waits up to the
+timeout it is given and says `OK` with the body, type and delivery tag, `TIMEOUT` when
+nothing arrived, or `FAIL` when the connection is gone. `ack` tells the broker the message
+is handled; messages that are never acked come back on the next connection.
+
+Every call blocks on the socket, so a connection belongs to one thread. Opening again
+closes whatever was open first, and a step that fails leaves nothing open. Nothing is
+consumed before `open` succeeds, so a call on a closed connection returns a failure rather
+than touching the socket. The body is copied out of the envelope once per message and the
+envelope is released straight after.
+
 ## Dir Watcher
 
 `inc/source/dir_watcher.hpp`, `src/source/dir_watcher.cpp`.

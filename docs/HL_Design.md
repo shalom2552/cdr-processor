@@ -52,6 +52,13 @@ that throw are logged, not fatal. Shutdown drains the queue and joins the worker
 is the first one: it maps a `.cdr` file, checks the `CDR|<format>|<count>` header, and
 runs the lines through the parser. A queue source drops in behind the same interface.
 
+### Rabbit Conn
+
+The AMQP side of a queue source: connects to the broker, consumes one queue with a
+prefetch, and hands back a message with its body, type and delivery tag. A message is
+acked once it is handled, so anything unacked is redelivered. Calls block on the socket,
+so one connection belongs to one thread.
+
 ### Dir Watcher
 
 Watches the input directory with inotify and hands out one file at a time. Files arrive
