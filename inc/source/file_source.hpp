@@ -17,6 +17,10 @@ struct Fileheader {
     std::size_t record_count;
 };
 
+/**
+ * Reads CDR records from one file.
+ * Maps the file, parses each line, hands back records in batches.
+ */
 class FileSource : public ICdrSource {
 public:
     /**

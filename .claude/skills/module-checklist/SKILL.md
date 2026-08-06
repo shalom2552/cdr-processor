@@ -5,16 +5,17 @@ description: Tests, reviews, logs, and documents a C++ module in the cdr-process
 
 # Module checklist
 
-One request covers all six steps — a module is done when it is tested, reviewed, logged,
-and written up. Copy this into the first reply and tick items off as they land:
+One request covers all seven steps — a module is done when it is tested, reviewed, logged,
+commented, and written up. Copy this into the first reply and tick items off as they land:
 
 ```
 - [ ] 1. Read the header, not the implementation
 - [ ] 2. Write tests, run `make test`
 - [ ] 3. Review the module, propose fixes, get a green suite
 - [ ] 4. Set log levels
-- [ ] 5. Add the component to both design docs
-- [ ] 6. Report
+- [ ] 5. Comment the header API
+- [ ] 6. Add the component to both design docs
+- [ ] 7. Report
 ```
 
 In order, no stopping early. Only the user skips a step. A step that proves impossible
@@ -68,7 +69,21 @@ Every message opens `[ComponentName]`. Move wrong-level lines, don't add beside 
 Never log in `src/config.cpp` — `Logger`'s constructor reads `cfg`, so logging during
 `Config::load` re-enters `Config::instance()` mid-construction. Config errors stay throws.
 
-## 5. Design docs
+## 5. Header API comments
+
+In the `.hpp`, never the `.cpp`.
+
+- Short and private methods, plain classes: one `/* ... */` line, no tags.
+- Classes: `/** */`, 2-3 plain lines, no tags — what it does and what it hands back.
+  No failure modes, no status codes, no jargon; those live on the methods.
+- Public API and constructors: `/** */` with one sentence plus any failure the caller
+  cannot see, blank line, then `@param name: lowercase text` and `@return`. Constructors
+  open with `Constructor, `.
+- Nothing on destructors, deleted copies, or a pure virtual its signature already states.
+
+`inc/util/mapped_file.hpp` and `inc/source/file_source.hpp` are the reference.
+
+## 6. Design docs
 
 `docs/DL_Design.md`: one `##` per component, `###` per piece of a subsystem
 (`## Source` → `### File Source`). File paths first, then a short paragraph on what it
@@ -79,7 +94,7 @@ does and what it costs.
 Plain words. No how-to mechanics, no Notes or Gotchas sections, no defaults tables. Only
 what the code does today — intent goes to the user, not the doc.
 
-## 6. Report
+## 7. Report
 
 One scan, no reading. Ten lines at most: a one-line verdict, then numbered items of one
 line each, file paths included.
@@ -98,4 +113,5 @@ line each, file paths included.
 - Constructor and destructor bodies on their own lines, never one-liners.
 - `/* ... */` above types and helpers; no narration inside function bodies.
 - Ask before restructuring folders, adding config keys, or changing a public header.
-- Commits: Conventional Commits, terse subject, body only when the why is not obvious.
+- No git. Work in the current directory on the current branch — no worktree, no branch,
+  no stash, no commit. The user runs every git command.
