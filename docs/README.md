@@ -134,9 +134,6 @@ Config file is located at project root `config.toml`, read once at startup and v
 so a bad value stops the processor before any record moves.
 
 ```toml
-[config]
-conf = true             # sanity check, fails on false
-
 [log]
 level = "info"          # debug, info, warn, error, none
 
