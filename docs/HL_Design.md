@@ -81,6 +81,12 @@ drives the file path: a feeder thread claims files from the watcher and a thread
 each one through a `FileSource` into the sink. The parser is chosen once at startup, so a
 bad format is refused before any file moves. Drained files go to done, failures to failed.
 
+### Ingestor Factory
+
+`IngestorFactory` maps `source.mode` to an ingestor and builds it around the sink, the way
+`ParserFactory` maps a format to a parser. An unknown mode gives back nothing instead of a
+running process. Adding a mode is a registration and a class behind `IIngestor`.
+
 ### Rabbit Ingestor
 
 `RabbitIngestor` drives the queue path: one connection and one `RabbitSource` per consumer

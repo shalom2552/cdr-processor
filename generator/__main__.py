@@ -38,11 +38,18 @@ def chosen_mode(args: argparse.Namespace, settings: Settings) -> str:
 
 def generate(sink: Sink, seq: Sequence, interval: float) -> None:
     """Feed records to the sink until the user stops us or the sink says it is done."""
+    emit, nxt = sink.emit, seq.next
     try:
-        while True:
-            sink.emit(pipe_record(random_cdr(seq.next())))
-            time.sleep(interval)
-    except (KeyboardInterrupt, StopEmitting):
+        if interval <= 0:                       # a sleep call per record halves the rate
+            while True:
+                emit(pipe_record(random_cdr(nxt())))
+        else:
+            while True:
+                emit(pipe_record(random_cdr(nxt())))
+                time.sleep(interval)
+    except KeyboardInterrupt:
+        status("stop", "stopping...")
+    except StopEmitting:
         pass
 
 
@@ -53,12 +60,16 @@ def main() -> None:
 
     with Sequence(SEQ_FILE) as seq:
         status("config", f"gen_interval={settings.gen_interval}s  seq={seq.value}")
+        started = time.perf_counter()
         try:
             with sinks.build(chosen_mode(args, settings), settings) as sink:
                 generate(sink, seq, settings.gen_interval)
         finally:
+            elapsed = time.perf_counter() - started
             if seq.generated:                   # a run that never started says nothing
-                status("stop", f"{seq.generated} records generated")
+                status("stop", f"generated {seq.generated:,} records "
+                               f"in {elapsed:.1f}s "
+                               f"(~{seq.generated / elapsed:,.0f} records/s)")
 
 
 if __name__ == "__main__":

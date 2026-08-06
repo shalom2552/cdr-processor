@@ -7,6 +7,8 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+_random = random.random
+
 DIGITS = "0123456789"
 USAGE_TYPES = ("MOC", "MTC", "SMS-MO", "SMS-MT", "D", "U", "B", "X")
 TIMED_USAGE = ("MOC", "MTC", "D")       # only answered calls and data sessions last a while
@@ -17,7 +19,7 @@ MAX_DURATION = 60 * 60                  # an hour, in seconds
 MAX_BYTES = 10_000_000
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Cdr:
     seq: int
     imsi: str
@@ -32,14 +34,20 @@ class Cdr:
     second_party_msisdn: str
 
 
+def _below(n: int) -> int:
+    """A number in [0, n). One call into the C random, where randrange takes several."""
+    return int(_random() * n)
+
+
 def _digits(n: int) -> str:
     """n digits, may lead with a zero."""
-    return "".join(random.choices(DIGITS, k=n))
+    return f"{_below(10 ** n):0{n}d}"
 
 
 def _number(n: int) -> str:
     """n digits with no leading zero, for fields read back as integers."""
-    return random.choice(DIGITS[1:]) + _digits(n - 1)
+    low = 10 ** (n - 1)
+    return str(low + _below(low * 9))
 
 
 def _imei() -> str:
@@ -47,40 +55,32 @@ def _imei() -> str:
 
 
 def random_cdr(seq: int) -> Cdr:
-    usage = random.choice(USAGE_TYPES)
+    usage = USAGE_TYPES[_below(len(USAGE_TYPES))]
     is_data = usage == DATA_USAGE
     return Cdr(
         seq=seq,
         imsi=_number(15),
         imei=_imei(),
         usage=usage,
-        msisdn=_number(random.randint(11, 15)),
-        when=datetime.now() - timedelta(seconds=random.randint(0, MAX_AGE_SECONDS)),
-        duration=random.randint(1, MAX_DURATION) if usage in TIMED_USAGE else 0,
-        bytes_rx=random.randint(0, MAX_BYTES) if is_data else None,
-        bytes_tx=random.randint(0, MAX_BYTES) if is_data else None,
+        msisdn=_number(11 + _below(5)),
+        when=datetime.now() - timedelta(seconds=_below(MAX_AGE_SECONDS)),
+        duration=1 + _below(MAX_DURATION) if usage in TIMED_USAGE else 0,
+        bytes_rx=_below(MAX_BYTES) if is_data else None,
+        bytes_tx=_below(MAX_BYTES) if is_data else None,
         second_party_imsi="" if is_data else _number(15),
-        second_party_msisdn="" if is_data else _number(random.randint(11, 15)),
+        second_party_msisdn="" if is_data else _number(11 + _below(5)),
     )
 
 
 def pipe_record(cdr: Cdr) -> str:
     """One record as 12 pipe separated fields, empty where a field does not apply."""
-    optional = lambda v: "" if v is None else str(v)
-    return "|".join([
-        str(cdr.seq),
-        cdr.imsi,
-        cdr.imei,
-        cdr.usage,
-        cdr.msisdn,
-        f"{cdr.when:%d/%m/%Y}",
-        f"{cdr.when:%H:%M:%S}",
-        str(cdr.duration),
-        optional(cdr.bytes_rx),
-        optional(cdr.bytes_tx),
-        cdr.second_party_imsi,
-        cdr.second_party_msisdn,
-    ])
+    w = cdr.when                                # strftime costs more than the fields do
+    date = f"{w.day:02d}/{w.month:02d}/{w.year}"
+    clock = f"{w.hour:02d}:{w.minute:02d}:{w.second:02d}"
+    rx = "" if cdr.bytes_rx is None else cdr.bytes_rx
+    tx = "" if cdr.bytes_tx is None else cdr.bytes_tx
+    return (f"{cdr.seq}|{cdr.imsi}|{cdr.imei}|{cdr.usage}|{cdr.msisdn}|{date}|{clock}"
+            f"|{cdr.duration}|{rx}|{tx}|{cdr.second_party_imsi}|{cdr.second_party_msisdn}")
 
 
 def pipe_header(fmt: str, count: int) -> str:

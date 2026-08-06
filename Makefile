@@ -53,7 +53,7 @@ run: $(BIN)
 	@./$(BIN)
 
 test: $(TEST_BIN)
-	./$(TEST_BIN)
+	@./$(TEST_BIN)
 
 gen:
 	@python3 -m $(CDR_GEN) $(ARGS)

@@ -107,6 +107,12 @@ thread, and acks a message once it is handled, so anything left unacked is redel
 `scripts/consume.py` drains the queue on its own, for checking what the generator put
 there without running the processor.
 
+The `rabbitmq:3-management` image also serves the management web UI on port 15672:
+
+```
+http://localhost:15672      # user guest, password guest
+```
+
 ## Testing
 
 This project uses the [doctest](https://github.com/onqtam/doctest) library for testing,

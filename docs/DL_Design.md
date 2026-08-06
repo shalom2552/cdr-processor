@@ -157,6 +157,17 @@ A drained file is moved to the done directory, or to the failed directory when t
 reports a failure. `stop()` wakes the watcher, joins the feeder, and drains the pool, so no
 file is left half processed.
 
+### Ingestor Factory
+
+`inc/ingest/ingestor_factory.hpp`, `src/ingest/ingestor_factory.cpp`.
+
+`IngestorFactory` maps a source mode to the ingestor that drives it. A single shared
+instance registers `file` and `rabbit` at construction, and `createIngestor()` builds a
+fresh one by name around the sink it is given, or returns null when the mode is not
+registered; `hasIngestor()` answers without building one. The name comes from
+`source.mode`, so `main` never names an ingestor and a new mode is one `registerIngestor`
+call and a class behind `IIngestor`.
+
 ### Rabbit Ingestor
 
 `inc/ingest/rabbit_ingestor.hpp`, `src/ingest/rabbit_ingestor.cpp`.

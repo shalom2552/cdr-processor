@@ -85,7 +85,7 @@ void RabbitIngestor::stop()
 
 void RabbitIngestor::consume(std::size_t id)
 {
-    const std::string tag = "consumer-" + std::to_string(id);
+    const std::string tag = "consumer " + std::to_string(id);
 
     RabbitConn& connection = *m_conns[id];
     RabbitSource source(connection);

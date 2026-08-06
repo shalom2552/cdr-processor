@@ -35,10 +35,10 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 **Goal:** files in → records streamed to a sink.
  
 - [x] `ICdrSource` interface — `bool next(std::vector<CdrRecord>&)`
-- [ ] `DirWatchSource` — inotify on input dir, stable-file detection (size settled / rename-on-complete)
+- [x] `DirWatchSource` — inotify on input dir, stable-file detection (size settled / rename-on-complete)
 - [x] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
-- [ ] Concurrent multi-file: 2–4 files in flight, one worker per file
-- [ ] Move to `done/` on success, `failed/` on parse error
+- [x] Concurrent multi-file: 2–4 files in flight, one worker per file
+- [x] Move to `done/` on success, `failed/` on parse error
 - [x] `generator/` — python package that generates synthetic CDR files at configurable rate/size
 **Done when:** the generator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
  
