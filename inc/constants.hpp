@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string_view>
+#include <cstdint>
 
 inline constexpr std::string_view kConfigPath = "config.toml";
 
@@ -20,5 +21,8 @@ inline constexpr std::size_t kFileBatchSize = kBatchSize;
 inline constexpr std::size_t kBacklogAlert = 16; // queued files before the backlog is logged
 
 // rabbit source
-static constexpr size_t kRabbitBatchSize = kBatchSize;
 static constexpr int kPollMs = 100;
+static constexpr size_t kRabbitBatchSize = kBatchSize;
+inline constexpr std::size_t kRabbitPrefetch  = 2 * kRabbitBatchSize;
+static_assert(kRabbitPrefetch <= UINT16_MAX, "amqp_basic_qos prefetch_count is uint16_t");
+

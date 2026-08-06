@@ -1,11 +1,14 @@
 #include "config.hpp"
+#include "ingest/rabbit_ingestor.hpp"
 #include "logger.hpp"
-using namespace cdrp;
+
+#include "sink/isink.hpp"
 
 #include <csignal>
 
-#include "sink/isink.hpp"
-#include "ingest/file_ingestor.hpp"
+using namespace cdrp;
+
+std::atomic<bool> g_stop = false;
 
 class CountingSink : public ISink {
 public:
@@ -13,21 +16,23 @@ public:
     std::atomic<std::size_t> m_total = 0;
 };
 
-std::atomic<bool> g_stop = false;
+void run()
+{
+    CountingSink sink;
+    RabbitIngestor ingestor(sink);
+
+    if (!ingestor.start()) { return; }
+    while (!g_stop.load()) { pause(); } // wake on SIGINT
+
+    ingestor.stop();
+    logInfo("Main", "consumed " + std::to_string(sink.m_total.load()) + " records");
+}
 
 int main()
 {
     std::signal(SIGINT, [](int) { g_stop.store(true); });
     logInfo("Main", "starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
-
-    CountingSink sink;
-    FileIngestor ingestor(sink);
-
-    if (!ingestor.start()) { return 1; }
-    while (!g_stop.load()) { pause(); } // wake on SIGINT
-
-    ingestor.stop();
-    logInfo("Main", "consumed " + std::to_string(sink.m_total.load()) + " records");
+    run();
     logInfo("Main", "finished");
     return 0;
 }

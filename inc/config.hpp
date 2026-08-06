@@ -49,6 +49,7 @@ public:
     } file;
 
     struct {
+        std::size_t consumers;
         std::string url;
         std::string queue;
     } rabbit;

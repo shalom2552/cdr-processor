@@ -157,6 +157,23 @@ A drained file is moved to the done directory, or to the failed directory when t
 reports a failure. `stop()` wakes the watcher, joins the feeder, and drains the pool, so no
 file is left half processed.
 
+### Rabbit Ingestor
+
+`inc/ingest/rabbit_ingestor.hpp`, `src/ingest/rabbit_ingestor.cpp`.
+
+`RabbitIngestor` runs `rabbit.consumers` threads over the same queue. `start()` opens one
+`RabbitConn` per consumer before any thread runs, so a broker that is down makes `start()`
+fail instead of leaving a running ingestor with nothing behind it; a connection that fails
+on its own is logged and the remaining ones still start. An unknown `source.format` fails
+`start()` first, before a socket is opened.
+
+Each thread owns its connection and a `RabbitSource` over it, and loops until the stop flag
+is set: a batch of records goes to the sink, then one `ack(last_tag, true)` covers the whole
+batch, so acking costs one round trip per batch rather than per message. A read or an ack
+that fails ends that thread and leaves the rest running; its messages are unacked, so the
+broker redelivers them. `stop()` sets the flag, joins every thread and closes the
+connections, and each thread logs what it parsed and what it rejected as it leaves.
+
 ## Sink
 
 `inc/sink/isink.hpp`.

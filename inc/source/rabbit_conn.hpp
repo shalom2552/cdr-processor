@@ -40,10 +40,9 @@ public:
      *
      * @param url: the amqp url of the broker, with user, password and vhost
      * @param queue: the queue to consume
-     * @param prefetch: how many unacked messages the broker may send ahead
      * @return true once the queue is being consumed
      */
-    bool open(const std::string& url, const std::string& queue, uint16_t prefetch);
+    bool open(const std::string& url, const std::string& queue);
 
     /**
      * Waits for the next message on the channel.

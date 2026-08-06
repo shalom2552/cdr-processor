@@ -81,6 +81,13 @@ drives the file path: a feeder thread claims files from the watcher and a thread
 each one through a `FileSource` into the sink. The parser is chosen once at startup, so a
 bad format is refused before any file moves. Drained files go to done, failures to failed.
 
+### Rabbit Ingestor
+
+`RabbitIngestor` drives the queue path: one connection and one `RabbitSource` per consumer
+thread, each parsing its own messages into the sink. Connections are opened before the
+threads run, so a broker that is down is refused at startup. A batch is acked in one call
+once its records are in the sink, and anything unacked is redelivered.
+
 ### Sink
 
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,

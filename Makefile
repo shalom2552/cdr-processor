@@ -50,7 +50,7 @@ $(OBJDIR)/tests/%.o: tests/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 run: $(BIN)
-	./$(BIN)
+	@./$(BIN)
 
 test: $(TEST_BIN)
 	./$(TEST_BIN)

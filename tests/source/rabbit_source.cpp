@@ -65,7 +65,7 @@ TEST_CASE("rabbit_source_fails_when_the_connection_was_never_opened")
 TEST_CASE("rabbit_source_fails_after_the_connection_failed_to_open")
 {
     RabbitConn conn;
-    REQUIRE_FALSE(conn.open(kDeadUrl, "cdr.q", 16));
+    REQUIRE_FALSE(conn.open(kDeadUrl, "cdr.q"));
 
     RabbitSource source(conn);
     std::vector<CdrRecord> out;

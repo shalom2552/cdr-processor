@@ -5,6 +5,7 @@ conf = true             # senaty check, fails on false
 level = "info"          # debug, info, warn, error, none
 
 [source]
+# mode = "rabbit"           # mode = "file" or "rabbit"
 mode = "file"           # mode = "file" or "rabbit"
 format = "pipe"         # pipe is the only supported format
 
@@ -18,6 +19,7 @@ fail_dir    = "records/failed"      # directory holding failed files
 [source.rabbit]
 url = "amqp://guest:guest@localhost/"
 queue = "cdr"           # RabbitMQ queue name for cdr messages
+consumers = 4           # number of consumer threads, 0 for max
 
 [generator]
 rotate_seconds = 600    # seconds per .cdr file

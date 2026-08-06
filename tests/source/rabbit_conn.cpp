@@ -50,7 +50,7 @@ TEST_CASE("rabbit_conn_fails_to_open_a_url_it_cannot_parse")
     RabbitConn conn;
 
     for (const char* url : { "", "not a url", "http://127.0.0.1:5672/", "amqp://" }) {
-        CHECK_FALSE(conn.open(url, "cdr.q", 16));
+        CHECK_FALSE(conn.open(url, "cdr.q"));
     }
 }
 
@@ -59,7 +59,7 @@ TEST_CASE("rabbit_conn_fails_to_open_when_nothing_listens")
     RabbitConn conn;
     bool opened = true;
 
-    const long long elapsed = millisOf([&] { opened = conn.open(kDeadUrl, "cdr.q", 16); });
+    const long long elapsed = millisOf([&] { opened = conn.open(kDeadUrl, "cdr.q"); });
 
     CHECK_FALSE(opened);
     CHECK(elapsed < 5000);
@@ -69,15 +69,8 @@ TEST_CASE("rabbit_conn_survives_a_second_open_after_a_failed_one")
 {
     RabbitConn conn;
 
-    CHECK_FALSE(conn.open(kDeadUrl, "cdr.q", 16));
-    CHECK_FALSE(conn.open(kDeadUrl, "cdr.q", 16));
-}
-
-TEST_CASE("rabbit_conn_accepts_a_zero_prefetch")
-{
-    RabbitConn conn;
-
-    CHECK_FALSE(conn.open(kDeadUrl, "cdr.q", 0));
+    CHECK_FALSE(conn.open(kDeadUrl, "cdr.q"));
+    CHECK_FALSE(conn.open(kDeadUrl, "cdr.q"));
 }
 
 TEST_CASE("rabbit_conn_fails_to_consume_before_it_is_open")
@@ -95,7 +88,7 @@ TEST_CASE("rabbit_conn_fails_to_consume_before_it_is_open")
 TEST_CASE("rabbit_conn_fails_to_consume_after_a_failed_open")
 {
     RabbitConn conn;
-    REQUIRE_FALSE(conn.open(kDeadUrl, "cdr.q", 16));
+    REQUIRE_FALSE(conn.open(kDeadUrl, "cdr.q"));
 
     RabbitConn::Message message;
     CHECK(conn.consume(message, 50) == RabbitConn::Status::FAIL);
@@ -120,7 +113,7 @@ TEST_CASE("rabbit_conn_fails_to_ack_before_it_is_open")
 TEST_CASE("rabbit_conn_fails_to_ack_after_a_failed_open")
 {
     RabbitConn conn;
-    REQUIRE_FALSE(conn.open(kDeadUrl, "cdr.q", 16));
+    REQUIRE_FALSE(conn.open(kDeadUrl, "cdr.q"));
 
     CHECK_FALSE(conn.ack(0, false));
 }

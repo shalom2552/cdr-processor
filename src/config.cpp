@@ -1,4 +1,5 @@
 #include "config.hpp"
+
 #include "logger.hpp"
 #include "toml.h"
 
@@ -16,8 +17,15 @@ Config::Config()
     validate();
 
     Logger::instance().setLevel(Logger::levelFromName(log.level));
-    logDebug("Config", "loaded " + std::string(kConfigPath) + ": " + source.mode + " mode, "
-        + source.format + " format, " + log.level + " level, ready " + file.ready_dir);
+    logDebug("Config", "loaded " + std::string(kConfigPath));
+    logDebug("Config", "source: " + source.mode + " mode, " + source.format + " format");
+    logDebug("Config", "file: " + std::to_string(file.readers) + " readers, ready " + file.ready_dir
+        + ", process " + file.process_dir);
+    logDebug("Config", "file: done " + file.done_dir + ", failed " + file.fail_dir
+        + ", rotate " + std::to_string(file.rotate_seconds) + "s");
+    logDebug("Config", "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
+        + rabbit.queue + ", url " + rabbit.url);
+    logDebug("Config", "log: " + log.level + " level");
 }
 
 void Config::load(std::string_view path)
@@ -42,6 +50,7 @@ void Config::load(std::string_view path)
     file.done_dir = t["source"]["file"]["done_dir"].value_or<std::string>("records/done");
     file.fail_dir = t["source"]["file"]["fail_dir"].value_or<std::string>("records/failed");
 
+    rabbit.consumers = t["source"]["rabbit"]["consumers"].value_or<std::size_t>(4);
     rabbit.url = t["source"]["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
     rabbit.queue = t["source"]["rabbit"]["queue"].value_or<std::string>("cdr");
 
@@ -80,6 +89,11 @@ void Config::validate()
 
     if (rabbit.url.empty() || rabbit.queue.empty()) {
         throw std::runtime_error("RabbitMQ URL or queue not set");
+    }
+    if (rabbit.consumers == 0) {
+        unsigned n = std::thread::hardware_concurrency();
+        rabbit.consumers = (n == 0) ? 4 : n;
+        logInfo("Config", "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
     }
 
     if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
