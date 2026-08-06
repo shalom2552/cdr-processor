@@ -95,6 +95,22 @@ consumed before `open` succeeds, so a call on a closed connection returns a fail
 than touching the socket. The body is copied out of the envelope once per message and the
 envelope is released straight after.
 
+### Rabbit Source
+
+`inc/source/rabbit_source.hpp`, `src/source/rabbit_source.cpp`.
+
+`RabbitSource` is the `ICdrSource` over a `RabbitConn`. It consumes messages and runs each
+body through the parser named by `source.format`, filling a batch of up to
+`kRabbitBatchSize` records. A `TIMEOUT` from the connection ends the batch early, so a
+quiet queue gives back `OK` with nothing instead of blocking; a `FAIL` ends the batch with
+`FAIL`. A message the parser rejects is counted and dropped, the rest of the batch goes on.
+
+It keeps the delivery tag of the last message it took, so one `ack(tag, true)` covers a
+whole batch once the records are safe. `stop()` sets an atomic flag: the batch in progress
+ends at the next message and every later call says `DONE`. The connection is held by
+reference and outlives the source. `parsed()` and `rejected()` are the running counts, and
+the parser is built once in the constructor, which throws when the format has no parser.
+
 ## Dir Watcher
 
 `inc/source/dir_watcher.hpp`, `src/source/dir_watcher.cpp`.

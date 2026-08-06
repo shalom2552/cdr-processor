@@ -59,6 +59,14 @@ prefetch, and hands back a message with its body, type and delivery tag. A messa
 acked once it is handled, so anything unacked is redelivered. Calls block on the socket,
 so one connection belongs to one thread.
 
+### Rabbit Source
+
+The record side of a queue source: consumes messages over a `RabbitConn`, parses each body,
+and hands back batches like any other source. It remembers the last delivery tag so a whole
+batch is acked at once after the records are safe, and a quiet queue gives back a short
+batch instead of waiting. Stopping ends the batch in progress and every later call says it
+is done.
+
 ### Dir Watcher
 
 Watches the input directory with inotify and hands out one file at a time. Files arrive
