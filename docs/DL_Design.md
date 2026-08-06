@@ -73,7 +73,7 @@ there are. The generator writes it and refuses to run unless
 `FileSource` maps the file, reads that header, and hands each line to the parser. It walks
 the mapping with `memchr` looking for newlines, so a line is a `string_view` into the
 mapped pages and nothing is copied until the record is built. A batch stops at
-`kBatchSize` records, and `DONE` comes when the file runs out.
+`kFileBatchSize` records, and `DONE` comes when the file runs out.
 
 A file that will not map, or that does not start with a good header, logs a warning and
 yields no records. Bad lines inside a good file are skipped by the parser, one bad line

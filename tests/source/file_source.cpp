@@ -93,14 +93,14 @@ TEST_CASE("file_source_clears_the_output_between_batches")
 
 TEST_CASE("file_source_splits_a_long_file_into_batches")
 {
-    const std::size_t total = kBatchSize + 10;
+    const std::size_t total = kFileBatchSize + 10;
     const TempFile file(fileWith(total));
     const PipeParser parser;
     FileSource source(file.path(), parser);
 
     std::vector<CdrRecord> records;
     REQUIRE(source.next(records) == ICdrSource::Status::OK);
-    CHECK(records.size() == kBatchSize);
+    CHECK(records.size() == kFileBatchSize);
     CHECK(records.front().sequence == 1);
 
     REQUIRE(source.next(records) == ICdrSource::Status::OK);

@@ -33,7 +33,7 @@ public:
     FileSource(const std::string& file_path, const IParser& parser);
 
     /**
-     * Reads the next batch of up to kBatchSize records.
+     * Reads the next batch of up to kFileBatchSize records.
      *
      * @param out: the vector filled with the parsed records
      * @return OK while records remain, DONE once the file is drained

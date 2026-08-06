@@ -76,7 +76,7 @@ FileSource::Status FileSource::next(std::vector<CdrRecord>& out)
         return Status::FAIL;
     }
 
-    while (m_pos < m_end && out.size() < kBatchSize) {
+    while (m_pos < m_end && out.size() < kFileBatchSize) {
         const char* new_line = static_cast<const char*>(std::memchr(m_pos, '\n', m_end - m_pos));
         const char* end_line = new_line ? new_line : m_end;
 
