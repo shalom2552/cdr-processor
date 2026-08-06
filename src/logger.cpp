@@ -1,5 +1,5 @@
 #include "logger.hpp"
-#include "config.hpp"
+
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -61,19 +61,13 @@ LogLevel Logger::levelFromName(std::string_view name)
     return LogLevel::Info;
 }
 
-Logger::Logger()
-{
-    // set the log level according to config
-    m_level = levelFromName(cfg.log.level);
-}
-
 Logger& Logger::instance()
 {
     static Logger logger;
     return logger;
 }
 
-void Logger::log(LogLevel level, const std::string& message)
+void Logger::log(LogLevel level, std::string_view component, const std::string& message)
 {
     if (level == LogLevel::None || level < m_level) {
         return;
@@ -85,9 +79,9 @@ void Logger::log(LogLevel level, const std::string& message)
 
     // One lock around the whole line, otherwise concurrent logs interleave
     std::lock_guard<std::mutex> lock(m_mutex);
-    std::cerr << "\033[90m" << std::put_time(&tm, "%F %T") << "\033[0m "
+    std::cerr << "\033[90m" << std::put_time(&tm, "%m-%d %T") << "\033[0m "
               << levelColor(level) << '[' << levelName(level) << "]\033[0m "
-              << message << '\n';
+              << '[' << component << "] -> " << message << '\n';
 }
 
 void Logger::setLevel(LogLevel level)

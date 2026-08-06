@@ -8,7 +8,7 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 0 — Skeleton
 **Goal:** buildable repo, nothing works yet.
  
-- [x] Repo layout: `src/ include/ tests/ config/ docs/ tools/`
+- [x] Repo layout: `src/ inc/ tests/ generator/ scripts/ docs/ third_party/`, `config.toml` at the root
 - [x] Makefile (`all`, `test`, `clean`, `debug`, `release`), C++17, `-Wall -Wextra -pedantic`
 - [x] Unit test harness wired (doctest / gtest, header-only preferred)
 - [x] CI: build + test on push
@@ -21,10 +21,10 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
  
 - [x] `Config` — INI-style parser, typed getters, defaults, validation on load
 - [x] `Logger` — leveled, thread-safe, async sink
-- [ ] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
+- [x] `ThreadPool` — fixed workers, bounded MPMC task queue (backpressure, not unbounded growth)
 - [x] `CdrRecord` — POD struct; IMSI/MSISDN as `uint64_t`, not string
-- [x] `ICdrParser` + `PipeDelimitedParser` — tokenize `|`, field validation, reject malformed
-- [ ] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")
+- [x] `ICdrParser` + `CsvParser` — tokenize `|`, field validation, reject malformed
+- [x] `ParserRegistry` — format name → parser factory (satisfies §8.2 "future change of file format")
 **Done when:** parser round-trips a 10k-line fixture with zero allocations per record beyond the record itself.
  
 **Warning:** decide IMSI/MSISDN storage now. Switching from `std::string` to integer keys later touches every map, every hash, every test.
@@ -34,12 +34,12 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 2 — Ingest
 **Goal:** files in → records streamed to a sink.
  
-- [ ] `ICdrSource` interface — `bool next(std::vector<CdrRecord>&)`
-- [ ] `DirWatchSource` — inotify on input dir, stable-file detection (size settled / rename-on-complete)
-- [ ] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
-- [ ] Concurrent multi-file: 2–4 files in flight, one worker per file
-- [ ] Move to `done/` on success, `failed/` on parse error
-- [ ] `scripts/generate_cdrs.py` — generates synthetic CDR files at configurable rate/size
+- [x] `ICdrSource` interface — `bool next(std::vector<CdrRecord>&)`
+- [x] `DirWatchSource` — inotify on input dir, stable-file detection (size settled / rename-on-complete)
+- [x] Streaming reader — mmap or chunked `read()`; **never load a 5 GB file into memory**
+- [x] Concurrent multi-file: 2–4 files in flight, one worker per file
+- [x] Move to `done/` on success, `failed/` on parse error
+- [x] `generator/` — python package that generates synthetic CDR files at configurable rate/size
 **Done when:** the generator drops 4× 1 GB files; all are consumed, moved, and record count matches exactly.
  
 **Question:** rename-into-directory or size-polling for completion detection? Rename is atomic and race-free — push for it if you control the delivery side.

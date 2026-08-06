@@ -1,5 +1,6 @@
 -Iinc
--Iinc/third_party
+-Ithird_party
+-Ithird_party/rabbitmq-c/include
 -Wall
 -Wextra
 -Werror

@@ -2,6 +2,7 @@
 
 #include "constants.hpp"
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -31,19 +32,26 @@ private:
     void validate();
 
 public:
-    bool conf = false;
-
     struct {
         std::string mode;
         std::string format;
     } source;
 
     struct {
-        std::string dir;
+        char separator;
+    } csv;
+
+    struct {
+        std::size_t readers;
+        std::string ready_dir;
+        std::string process_dir;
+        std::string done_dir;
+        std::string fail_dir;
         int rotate_seconds = 0;
     } file;
 
     struct {
+        std::size_t consumers;
         std::string url;
         std::string queue;
     } rabbit;

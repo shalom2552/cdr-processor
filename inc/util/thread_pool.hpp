@@ -13,18 +13,28 @@ namespace cdrp {
 
 class ThreadPool {
 public:
-    /* creates a new thread pool with `workers` threads and `queue_size` tasks */
+    /**
+     * Constructor, starts the worker threads and waits for tasks.
+     *
+     * @param workers_count: the number of worker threads
+     * @param queue_size: the maximum number of queued tasks
+     */
     ThreadPool(std::size_t workers_count, std::size_t queue_size);
     ~ThreadPool();
 
     ThreadPool(const ThreadPool&) = delete;
     ThreadPool& operator=(const ThreadPool&) = delete;
 
-    /* blocks while the thread pool is busy */
+    /**
+     * Queues a task, blocks while the queue is full.
+     *
+     * @param task: the work to run on a worker thread
+     * @return true if queued, false once the pool is stopping
+     */
     bool submit(std::function<void()> task);
 
 private:
-    /* workers loop */
+    /* Worker loop, runs tasks until the pool stops */
     void run();
 
 private:

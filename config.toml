@@ -1,20 +1,82 @@
-[config]
-conf = true             # senaty check, fails on false
+# ---------------------------
+# cdr-processor configuration
+# ---------------------------
+#
+# This file consists of lines of the form:
+#
+#   name = value
+#
+# It is read once at startup, by the processor and by the python generator, from
+# the working directory. A change takes effect on the next run, there is no reload.
+#
+# Two settings decide which of the sections below are read at all:
+#
+#   mode = "file"     -> reads [source.file]
+#        = "rabbit"   -> reads [source.rabbit]
+#
+#   format = "csv"    -> reads [source.csv]
+#
+# A thread count of 0 means one thread per core.
+
+###################################### LOG #####################################
+#
+# Every line goes to stderr as time, component, message. The level is a floor, a
+# line below it is dropped. debug adds the settings read from here, the size of
+# every batch, and each record line the parser threw away.
 
 [log]
 level = "info"          # debug, info, warn, error, none
 
+##################################### SOURCE ###################################
+#
+# Where the records come from, and how a record is written. The format is the same
+# either way, a message body holds the record a file line would have held.
+
 [source]
-mode = "file"           # mode = "file" or "rabbit"
-format = "pipe"         # pipe is the only supported format
+mode   = "file"         # mode = "file" or "rabbit"
+format = "csv"          # csv is the only supported format
+
+[source.csv]
+separator = "|"         # csv separator for record fields
+
+################################## FILE SOURCE #################################
+#
+# With mode = "file" the processor reads records from .cdr files on disk.
+#
+# The file source walks each file through these directories: it takes one from
+# ready_dir, renames it into process_dir while it is read, and leaves it in
+# done_dir or fail_dir at the end.
 
 [source.file]
-dir = "records"         # directory holding the .cdr files
-rotate_seconds = 600    # seconds per .cdr file
+ready_dir   = "records/ready/"      # directory holding the .cdr files
+process_dir = "records/.processing" # directory holding fils in process
+done_dir    = "records/done"        # directory holding processed files
+fail_dir    = "records/failed"      # directory holding failed files
+readers     = 4                     # number of readers threads, 0 for max
+
+################################# RABBIT SOURCE ################################
+#
+# With mode = "rabbit" the processor consumes records from a RabbitMQ queue.
+#
+# One message body is one record. The source takes a batch off the queue and acks
+# the whole batch once it is handled, so a batch it never got through is delivered
+# again. The generator declares the queue, the processor only consumes it.
 
 [source.rabbit]
-url = "amqp://guest:guest@localhost/"
-queue = "cdr"          # RabbitMQ queue name for cdr messages
+url       = "amqp://guest:guest@localhost/"
+queue     = "cdr"       # RabbitMQ queue name for cdr messages
+consumers = 4           # number of consumer threads, 0 for max
+
+################################### GENERATOR ##################################
+#
+# The python generator writes synthetic records: `make gen`, with ARGS=-p, -f or -r
+# to print them, write files, or publish them to the queue. Without a flag it takes
+# the mode above, and it always writes records in the format set above.
+#
+# rotate_seconds only applies to files, and gen_interval 0 generates flat out.
 
 [generator]
-gen_interval = 0.001    # seconds between generated records
+rotate_seconds = 600    # seconds per .cdr file
+gen_interval   = 0.001  # seconds between generated records
+
+
