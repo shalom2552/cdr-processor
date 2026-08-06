@@ -39,8 +39,6 @@ void Config::load(std::string_view path)
         throw std::runtime_error("Configuration not loaded");
     }
 
-    conf = t["config"]["conf"].value_or<bool>(false);
-
     source.mode = t["source"]["mode"].value_or<std::string>("file");
     source.format = t["source"]["format"].value_or<std::string>("csv");
 
@@ -62,9 +60,6 @@ void Config::load(std::string_view path)
 
 void Config::validate()
 {
-    if (!conf) {
-        throw std::runtime_error("Configuration not loaded");
-    }
     if (source.mode != "file" && source.mode != "rabbit") {
         throw std::runtime_error("Invalid mode: " + source.mode + "\nValid modes are file and rabbit.");
     }

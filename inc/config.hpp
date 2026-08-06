@@ -32,8 +32,6 @@ private:
     void validate();
 
 public:
-    bool conf = false;
-
     struct {
         std::string mode;
         std::string format;

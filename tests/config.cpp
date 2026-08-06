@@ -1,11 +1,6 @@
 #include "doctest.h"
 #include "config.hpp"
 
-TEST_CASE("config_loads")
-{
-    CHECK(cdrp::Config::instance().conf);
-}
-
 TEST_CASE("config_mode_is_valid")
 {
     const std::string& mode = cdrp::Config::instance().source.mode;
