@@ -94,6 +94,12 @@ thread, each parsing its own messages into the sink. Connections are opened befo
 threads run, so a broker that is down is refused at startup. A batch is acked in one call
 once its records are in the sink, and anything unacked is redelivered.
 
+### Delta
+
+`Delta` is what a batch of records adds up to: counters by subscriber, by operator, and by
+pair of subscribers. Plain structs, all counters start at 0. A pair is directed, so who
+called whom is kept apart.
+
 ### Sink
 
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,

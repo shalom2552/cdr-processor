@@ -186,6 +186,26 @@ that fails ends that thread and leaves the rest running; its messages are unacke
 broker redelivers them. `stop()` sets the flag, joins every thread and closes the
 connections, and each thread logs what it parsed and what it rejected as it leaves.
 
+## Delta
+
+`inc/aggregate/delta.hpp`.
+
+Header only, plain structs. A `Delta` is what one batch of records adds up to, held in
+three maps: `subs` by subscriber IMSI, `ops` by operator code, `links` by pair of
+subscribers. Every counter starts at 0, so a first record can be added into a fresh entry
+without a lookup first.
+
+`SubDelta` counts call seconds each way, bytes each way, messages each way, and the calls
+that went unanswered, busy, or failed. `OpDelta` keeps only voice and sms. `LinkDelta`
+keeps the seconds and messages one pair exchanged.
+
+`LinkKey` is directed: owner to peer and peer to owner are two entries. `LinkHash` runs
+each half through a splitmix64 finalizer and combines them with an offset, so swapping
+them changes the hash.
+
+A subscriber entry is 72 bytes of counters plus the map's node, so a run over millions of
+subscribers is measured in hundreds of megabytes.
+
 ## Sink
 
 `inc/sink/isink.hpp`.
