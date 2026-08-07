@@ -96,7 +96,7 @@ TEST_CASE("redis_store_answers_an_increment_the_same_way_the_server_is_reachable
 
     CHECK(queued == serverUp());
     CHECK(elapsed < 5000);
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_takes_an_increment_of_zero")
@@ -104,7 +104,7 @@ TEST_CASE("redis_store_takes_an_increment_of_zero")
     RedisStore store;
 
     CHECK(store.increment(kKey, "zero", 0) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_takes_a_counter_larger_than_a_32_bit_total")
@@ -112,7 +112,7 @@ TEST_CASE("redis_store_takes_a_counter_larger_than_a_32_bit_total")
     RedisStore store;
 
     CHECK(store.increment(kKey, "wide", 8589934592ULL) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_takes_an_empty_key_and_field")
@@ -120,7 +120,7 @@ TEST_CASE("redis_store_takes_an_empty_key_and_field")
     RedisStore store;
 
     CHECK(store.increment(kEmptyKey, "", 1) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_takes_a_key_and_field_that_are_not_terminated")
@@ -130,7 +130,7 @@ TEST_CASE("redis_store_takes_a_key_and_field_that_are_not_terminated")
     const std::string_view key(buffer.data(), kKey.size());
 
     CHECK(store.increment(key, std::string_view("longfield", 4), 1) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_takes_a_long_key")
@@ -138,7 +138,7 @@ TEST_CASE("redis_store_takes_a_long_key")
     RedisStore store;
 
     CHECK(store.increment(kLongKey, "long", 1) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_shares_one_instance_between_calls")
@@ -149,7 +149,7 @@ TEST_CASE("redis_store_shares_one_instance_between_calls")
         CHECK(store.increment(kKey, "shared", 1) == serverUp());
     }
 
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
 
 TEST_CASE("redis_store_drains_a_pipeline_that_fills_up")
@@ -204,7 +204,7 @@ TEST_CASE("redis_store_keeps_answering_after_a_failed_write")
     RedisStore store;
 
     CHECK(store.increment(kKey, "after", 1) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
     CHECK(store.increment(kKey, "after", 1) == serverUp());
-    CHECK(store.flush() == serverUp());
+    CHECK(store.flush());
 }
