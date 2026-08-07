@@ -4,6 +4,16 @@ Core stuff lives at the top of `inc/` and `src/`. Anything bigger than one file 
 folder of its own. Vendored libraries stay out of both and live under `third_party/`:
 single headers at its top level, multi-file libraries in a folder of their own.
 
+## Design decisions
+
+A link is written in both directions from the one record that mentions the pair: owner to
+peer and peer to owner. The generator emits every record on its own, so the other leg of a
+call never arrives, and a peer that is never a subscriber still gets a hash of its own. A
+feed that carries both legs would count each call twice.
+
+A record with no subscriber MSISDN counts nowhere, and one with no second party gets no
+link.
+
 ## CDR Record
 
 `inc/cdr_record.hpp`.
@@ -186,13 +196,104 @@ that fails ends that thread and leaves the rest running; its messages are unacke
 broker redelivers them. `stop()` sets the flag, joins every thread and closes the
 connections, and each thread logs what it parsed and what it rejected as it leaves.
 
+## Delta
+
+`inc/aggregate/delta.hpp`.
+
+Header only, plain structs. A `Delta` is what one batch of records adds up to, held in
+three maps: `subs` by subscriber IMSI, `ops` by operator code, `links` by pair of
+subscribers. Every counter starts at 0, so a first record can be added into a fresh entry
+without a lookup first.
+
+`SubDelta` counts call seconds each way, bytes each way, messages each way, and the calls
+that went unanswered, busy, or failed. `OpDelta` keeps only voice and sms. `LinkDelta`
+keeps the seconds and messages one pair exchanged.
+
+`LinkKey` is directed: owner to peer and peer to owner are two entries. `LinkHash` runs
+each half through a splitmix64 finalizer and combines them with an offset, so swapping
+them changes the hash.
+
+A subscriber entry is 72 bytes of counters plus the map's node, so a run over millions of
+subscribers is measured in hundreds of megabytes.
+
+## Aggregator
+
+`inc/aggregate/aggregator.hpp`, `src/aggregate/aggregator.cpp`.
+
+`fold()` walks a batch once and adds it into a `Delta`, which it clears first and whose
+buckets it reuses across calls. Nothing is kept between calls, so any number of threads can
+fold at the same time as long as each holds its own `Delta`.
+
+Each record adds to the subscriber's bucket, keyed by MSISDN. Calls add their seconds each
+way, messages count one each way, data adds its byte counts, and unanswered, busy and
+failed calls each get their own counter. The operator bucket is keyed by the MCCMNC of the
+subscriber's own IMSI and takes only voice and sms; an IMSI too short to hold one counts
+nowhere. Calls and messages also add to the link between the two parties.
+
+One record is a handful of map lookups and integer adds, so the cost of a batch is the
+hashing, not the arithmetic.
+
+## Store
+
+`inc/store/istore.hpp`.
+
+`IStore::increment()` adds a value to one field of one key, `flush()` completes everything
+queued so far. Both are called from several threads at once, so an implementation owns its
+own locking or gives each thread its own state. Nothing about records or aggregates reaches
+this far: it is keys, fields and numbers.
+
+### Redis Store
+
+`inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
+
+One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline. Each thread
+opens its own connection on first use and frees it when the thread ends, so no lock is
+taken on the write path. Host, port and timeout come from `config.toml`, and the timeout
+covers the connect and every command after it.
+
+Commands go out without waiting for their replies. The pipeline drains itself once it holds
+`kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
+command. A reply that carries an error is counted as a failure and logged, so a rejected
+increment is not read as a write. A broken connection is freed and opened again on the next
+call, and the commands that were queued on it are lost and reported.
+
+Cost per increment is the append into the output buffer; the round trip is paid once per
+1024 commands instead of once each.
+
+### Aggregate Writer
+
+`inc/store/aggregate_writer.hpp`, `src/store/aggregate_writer.cpp`.
+
+Turns a folded `Delta` into store calls. Subscribers go to `sub:<msisdn>`, operators to
+`op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur` and `<peer>:sms` as fields, so a
+subscriber's peers are one hash and not one key per edge. Counters that are 0 are skipped
+rather than written, since the batch never touched them.
+
+It holds nothing but the store it writes to, so threads can share one writer if the store
+allows it. The key and field are built into two buffers that are reused down the whole
+delta, so a batch costs no allocation past the first entry. The store is flushed once at
+the end and the batch is reported failed if any counter or the flush failed.
+
 ## Sink
 
 `inc/sink/isink.hpp`.
 
 `ISink::consume()` takes ownership of a batch of records. It is the far end of ingestion:
 the ingestor's workers call it from several threads at once, so an implementation owns its
-own locking. No sink is built yet.
+own locking.
+
+### Redis Sink
+
+`inc/sink/redis_sink.hpp`, `src/sink/redis_sink.cpp`.
+
+Holds an `Aggregator`, a `RedisStore` and an `AggregateWriter` over that store. `consume()`
+folds the batch into a `Delta`, writes it, and adds the batch size to a running total that
+`total()` hands back. Records that reached nothing are still counted.
+
+The `Delta` is one per thread and lives past the call, so its buckets are reused batch after
+batch and a steady stream allocates nothing. Nothing is locked: the fold reads only the
+batch, the total is one relaxed atomic add, and the store gives each thread its own
+connection. A batch that did not fully land is logged by the writer and dropped.
 
 ## Config
 

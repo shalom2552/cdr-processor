@@ -2,7 +2,7 @@
 #include "ingest/ingestor_factory.hpp"
 #include "logger.hpp"
 
-#include "sink/isink.hpp"
+#include "sink/redis_sink.hpp"
 
 #include <csignal>
 
@@ -10,15 +10,9 @@ using namespace cdrp;
 
 std::atomic<bool> g_stop = false;
 
-class CountingSink : public ISink {
-public:
-    void consume(std::vector<CdrRecord>& batch) override { m_total.fetch_add(batch.size(), std::memory_order_relaxed); }
-    std::atomic<std::size_t> m_total = 0;
-};
-
 void run()
 {
-    CountingSink sink;
+    RedisSink sink;
     auto ingestor = IngestorFactory::instance().createIngestor(cfg.source.mode, sink);
     if (!ingestor) {
         logError("Main", "no ingestor for mode: " + cfg.source.mode);
@@ -29,7 +23,7 @@ void run()
     while (!g_stop.load()) { pause(); } // wake on SIGINT
 
     ingestor->stop();
-    logInfo("Main", "consumed " + std::to_string(sink.m_total.load()) + " records");
+    logInfo("Main", "consumed " + std::to_string(sink.total()) + " records");
 }
 
 int main()

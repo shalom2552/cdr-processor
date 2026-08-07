@@ -1,53 +1,20 @@
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -MMD -MP -pthread
-CXXFLAGS += -Iinc -I$(THIRD_PARTY) -I$(RMQ)/include
-LDFLAGS = -pthread
+CXX      = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -MMD -MP -pthread -Iinc
+LDFLAGS  = -pthread
 
-CDR_GEN = generator
+BUILD    = build
+CDR_GEN  = generator
 
-BUILD     = build
-OBJDIR    = $(BUILD)/obj
-BIN       = $(BUILD)/main
-TEST_BIN  = $(BUILD)/tests
+OBJDIR   = $(BUILD)/obj
+BIN      = $(BUILD)/main
+TEST_BIN = $(BUILD)/tests
 
-SRC = $(shell find src -name '*.cpp')
-OBJ = $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC))
-
-LIB_OBJ = $(filter-out $(OBJDIR)/main.o,$(OBJ))
-TEST_SRC = $(shell find tests -name '*.cpp')
-TEST_OBJ = $(patsubst tests/%.cpp,$(OBJDIR)/tests/%.o,$(TEST_SRC))
-DEPS = $(OBJ:.o=.d) $(TEST_OBJ:.o=.d) $(RMQ_OBJS:.o=.d)
-
-THIRD_PARTY = third_party
-RMQ = $(THIRD_PARTY)/rabbitmq-c
-RMQ_SRCS = $(wildcard $(RMQ)/src/*.c)
-RMQ_OBJS = $(patsubst $(RMQ)/src/%.c,$(BUILD)/rmq/%.o,$(RMQ_SRCS))
-
-.PHONY: all build run test clean debug release gen
+# ---- targets --------------------------------------------------------------
+.PHONY: all build run test gen debug release clean
 
 all: $(BIN) $(TEST_BIN)
 
 build: $(BIN)
-
-$(BUILD)/rmq/%.o: $(RMQ)/src/%.c
-	@mkdir -p $(@D)
-	$(CC) -I$(RMQ)/include -DAMQP_STATIC -DHAVE_CONFIG_H -O2 -w -MMD -MP -c $< -o $@
-
-$(BIN): $(OBJ) $(RMQ_OBJS)
-	@mkdir -p $(@D)
-	$(CXX) $^ -o $@ $(LDFLAGS)
-
-$(TEST_BIN): $(TEST_OBJ) $(LIB_OBJ) $(RMQ_OBJS)
-	@mkdir -p $(@D)
-	$(CXX) $^ -o $@ $(LDFLAGS)
-
-$(OBJDIR)/%.o: src/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-$(OBJDIR)/tests/%.o: tests/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 run: $(BIN)
 	@./$(BIN)
@@ -67,5 +34,56 @@ release: build
 
 clean:
 	rm -rf $(BUILD)
+
+# ---- third party ----------------------------------------------------------
+THIRD_PARTY = third_party
+RMQ         = $(THIRD_PARTY)/rabbitmq-c
+HIREDIS     = $(THIRD_PARTY)/hiredis
+
+CXXFLAGS += -I$(THIRD_PARTY) -I$(RMQ)/include
+
+RMQ_SRCS = $(wildcard $(RMQ)/src/*.c)
+RMQ_OBJS = $(patsubst $(RMQ)/src/%.c,$(BUILD)/rmq/%.o,$(RMQ_SRCS))
+
+HIREDIS_SRCS = $(filter-out $(HIREDIS)/dict.c,$(wildcard $(HIREDIS)/*.c))
+HIREDIS_OBJS = $(patsubst $(HIREDIS)/%.c,$(BUILD)/hiredis/%.o,$(HIREDIS_SRCS))
+
+THIRD_PARTY_OBJS = $(RMQ_OBJS) $(HIREDIS_OBJS)
+
+$(BUILD)/rmq/%.o: $(RMQ)/src/%.c
+	@mkdir -p $(@D)
+	$(CC) -I$(RMQ)/include -DAMQP_STATIC -DHAVE_CONFIG_H -O2 -w -MMD -MP -c $< -o $@
+
+$(BUILD)/hiredis/%.o: $(HIREDIS)/%.c
+	@mkdir -p $(@D)
+	$(CC) -I$(HIREDIS) -O2 -w -MMD -MP -c $< -o $@
+
+# ---- app ------------------------------------------------------------------
+SRC = $(shell find src -name '*.cpp')
+OBJ = $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC))
+
+$(BIN): $(OBJ) $(THIRD_PARTY_OBJS)
+	@mkdir -p $(@D)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+$(OBJDIR)/%.o: src/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# ---- tests ----------------------------------------------------------------
+LIB_OBJ  = $(filter-out $(OBJDIR)/main.o,$(OBJ))
+TEST_SRC = $(shell find tests -name '*.cpp')
+TEST_OBJ = $(patsubst tests/%.cpp,$(OBJDIR)/tests/%.o,$(TEST_SRC))
+
+$(TEST_BIN): $(TEST_OBJ) $(LIB_OBJ) $(THIRD_PARTY_OBJS)
+	@mkdir -p $(@D)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+$(OBJDIR)/tests/%.o: tests/%.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# ---- deps -----------------------------------------------------------------
+DEPS = $(OBJ:.o=.d) $(TEST_OBJ:.o=.d) $(THIRD_PARTY_OBJS:.o=.d)
 
 -include $(DEPS)

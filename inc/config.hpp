@@ -42,6 +42,10 @@ public:
     } csv;
 
     struct {
+        std::string level;
+    } log;
+
+    struct {
         std::size_t readers;
         std::string ready_dir;
         std::string process_dir;
@@ -57,8 +61,10 @@ public:
     } rabbit;
 
     struct {
-        std::string level;
-    } log;
+        std::string host;
+        int port;
+        int timeout_ms;
+    } redis;
 };
 
 inline const Config& cfg = Config::instance();

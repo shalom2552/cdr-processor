@@ -26,6 +26,8 @@ Config::Config()
         + ", rotate " + std::to_string(file.rotate_seconds) + "s");
     logDebug("Config", "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
         + rabbit.queue + ", url " + rabbit.url);
+    logDebug("Config", "redis: " + redis.host + ":" + std::to_string(redis.port)
+        + ", timeout " + std::to_string(redis.timeout_ms) + "ms");
     logDebug("Config", "log: " + log.level + " level");
 }
 
@@ -54,6 +56,10 @@ void Config::load(std::string_view path)
     rabbit.consumers = t["source"]["rabbit"]["consumers"].value_or<std::size_t>(4);
     rabbit.url = t["source"]["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
     rabbit.queue = t["source"]["rabbit"]["queue"].value_or<std::string>("cdr");
+
+    redis.host = t["redis"]["host"].value_or<std::string>("127.0.0.1");
+    redis.port = t["redis"]["port"].value_or<int>(6379);
+    redis.timeout_ms = t["redis"]["timeout_ms"].value_or<int>(1000);
 
     log.level = t["log"]["level"].value_or<std::string>("info");
 }
@@ -95,6 +101,16 @@ void Config::validate()
         unsigned n = std::thread::hardware_concurrency();
         rabbit.consumers = (n == 0) ? 4 : n;
         logInfo("Config", "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
+    }
+
+    if (redis.host.empty()) {
+        throw std::runtime_error("Redis host not set");
+    }
+    if (redis.port <= 0 || redis.port > UINT16_MAX) {
+        throw std::runtime_error("Invalid redis port: " + std::to_string(redis.port));
+    }
+    if (redis.timeout_ms <= 0) {
+        throw std::runtime_error("Redis timeout must be greater than zero");
     }
 
     if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {

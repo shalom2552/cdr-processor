@@ -94,10 +94,40 @@ thread, each parsing its own messages into the sink. Connections are opened befo
 threads run, so a broker that is down is refused at startup. A batch is acked in one call
 once its records are in the sink, and anything unacked is redelivered.
 
+### Delta
+
+`Delta` is what a batch of records adds up to: counters by subscriber, by operator, and by
+pair of subscribers. Plain structs, all counters start at 0. A pair is directed, so who
+called whom is kept apart.
+
+### Aggregator
+
+`Aggregator` folds a batch of records into the `Delta` they add up to: per subscriber, per
+operator, and per pair. It holds nothing between calls and touches no I/O, so threads can
+fold side by side, each into its own `Delta`.
+
+### Store
+
+`IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
+is the first one, one hash per key and every increment an `HINCRBY`. Each thread gets its
+own connection and pipeline, so the write path takes no lock.
+
+### Aggregate Writer
+
+`AggregateWriter` writes a folded `Delta` into a store: subscribers, operators, and one hash
+of peers per subscriber. It knows the key names and nothing about the store behind them,
+so the same batch can be written anywhere `IStore` is implemented.
+
 ### Sink
 
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,
-so a sink handles its own locking. None is built yet.
+so a sink handles its own locking.
+
+### Redis Sink
+
+`RedisSink` is the first sink: it folds each batch into a `Delta` and writes it to Redis
+through `AggregateWriter`. The fold buffer is per thread and reused, so batches cost no
+allocation. It also keeps a running count of the records it took.
 
 ### Mapped File
 
