@@ -24,3 +24,12 @@ TEST_CASE("config_rabbit_section")
     CHECK_FALSE(config.rabbit.url.empty());
     CHECK_FALSE(config.rabbit.queue.empty());
 }
+
+TEST_CASE("config_redis_section")
+{
+    const cdrp::Config& config = cdrp::Config::instance();
+
+    CHECK_FALSE(config.redis.host.empty());
+    CHECK(config.redis.port > 0);
+    CHECK(config.redis.timeout_ms > 0);
+}

@@ -50,14 +50,14 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 ## Phase 3 — Aggregation Engine
 **Goal:** the actual product. State lives in Redis, not in memory.
  
-- [ ] `Aggregator` — folds a batch into a `Delta` of increments; no Redis, no locks, no I/O
-- [ ] Billing per MSISDN: voice in/out sec, data rx/tx, SMS in/out, per-second-party breakdown
-- [ ] Operator per MCC/MNC, from the subscriber's own IMSI: voice in/out sec, SMS in/out
-- [ ] Links: one hash per subscriber, duration and sms per peer — not one key per edge
+- [x] `Aggregator` — folds a batch into a `Delta` of increments; no Redis, no locks, no I/O
+- [x] Billing per MSISDN: voice in/out sec, data rx/tx, SMS in/out, per-second-party breakdown
+- [x] Operator per MCC/MNC, from the subscriber's own IMSI: voice in/out sec, SMS in/out
+- [x] Links: one hash per subscriber, duration and sms per peer — not one key per edge
 - [ ] `U`, `B`, `X` counted nowhere (§2.1)
-- [ ] `IStore` / `RedisStore` — applies a `Delta`, hiredis, one connection per thread, pipelined `HINCRBY`
+- [x] `IStore` / `RedisStore` — applies a `Delta`, hiredis, one connection per thread, pipelined `HINCRBY`
 - [ ] `RedisSink : ISink` — fold then apply, synchronous
-- [ ] Redis host, port and timeouts in `config.toml`
+- [x] Redis host, port and timeouts in `config.toml`
 - [ ] Idempotency: per-source high-water sequence, written in the batch's pipeline
 **Done when:** aggregates from a known fixture match a Python reference implementation, and a replay of it changes nothing.
  

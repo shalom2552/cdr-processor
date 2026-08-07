@@ -67,6 +67,16 @@ url       = "amqp://guest:guest@localhost/"
 queue     = "cdr"       # RabbitMQ queue name for cdr messages
 consumers = 4           # number of consumer threads, 0 for max
 
+##################################### REDIS ####################################
+#
+# The redis server the counters are written to. The timeout covers both the connect
+# and every command on the connection.
+
+[redis]
+host       = "127.0.0.1" # redis server address
+port       = 6379        # redis server port
+timeout_ms = 1000        # connect and command timeout, milliseconds
+
 ################################### GENERATOR ##################################
 #
 # The python generator writes synthetic records: `make gen`, with ARGS=-p, -f or -r

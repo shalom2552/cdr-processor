@@ -106,6 +106,18 @@ called whom is kept apart.
 operator, and per pair. It holds nothing between calls and touches no I/O, so threads can
 fold side by side, each into its own `Delta`.
 
+### Store
+
+`IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
+is the first one, one hash per key and every increment an `HINCRBY`. Each thread gets its
+own connection and pipeline, so the write path takes no lock.
+
+### Aggregate Writer
+
+`AggregateWriter` writes a folded `Delta` into a store: subscribers, operators, and one hash
+of peers per subscriber. It knows the key names and nothing about the store behind them,
+so the same batch can be written anywhere `IStore` is implemented.
+
 ### Sink
 
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,

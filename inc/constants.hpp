@@ -29,3 +29,24 @@ static_assert(kRabbitPrefetch <= UINT16_MAX, "amqp_basic_qos prefetch_count is u
 // aggregate
 inline constexpr uint64_t kMsinDivisor = 10'000'000'000ULL; // strips MSIN, leaves MCCMNC
 
+// redis store
+inline constexpr std::size_t kRedisPipelineDepth = 1024; // commands queued before a drain
+
+// aggregate keys
+inline constexpr std::string_view kSubPrefix = "sub:";
+inline constexpr std::string_view kOpPrefix = "op:";
+inline constexpr std::string_view kLinkPrefix = "link:";
+
+// aggregate fields
+inline constexpr std::string_view kFieldVoiceOut = "voice_out";
+inline constexpr std::string_view kFieldVoiceIn = "voice_in";
+inline constexpr std::string_view kFieldDataRx = "data_rx";
+inline constexpr std::string_view kFieldDataTx = "data_tx";
+inline constexpr std::string_view kFieldSmsOut = "sms_out";
+inline constexpr std::string_view kFieldSmsIn = "sms_in";
+inline constexpr std::string_view kFieldNoans = "noans";
+inline constexpr std::string_view kFieldBusy = "busy";
+inline constexpr std::string_view kFieldFailed = "failed";
+inline constexpr std::string_view kFieldDurSuffix = ":dur";
+inline constexpr std::string_view kFieldSmsSuffix = ":sms";
+

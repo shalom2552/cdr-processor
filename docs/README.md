@@ -20,9 +20,11 @@ over an API.
 - `g++` with C++17 and `make`
 - `python3.11` or newer for the generator (it reads `config.toml` with `tomllib`)
 - `pika` and a running RabbitMQ broker, only for the rabbit source
+- a running Redis server, where the aggregated counters are written
 
-The AMQP client (rabbitmq-c) is vendored at `third_party/rabbitmq-c` and built by the
-Makefile, so nothing needs to be installed for the C++ side.
+The AMQP client (rabbitmq-c) and the Redis client (hiredis) are vendored at
+`third_party/rabbitmq-c` and `third_party/hiredis` and built by the Makefile, so nothing
+needs to be installed for the C++ side.
 
 ## Make Targets
 
@@ -42,6 +44,8 @@ Makefile, so nothing needs to be installed for the C++ side.
 sides read it, so the one switch points the generator and the processor at the same place.
 `csv` is the only supported format, and `[source.csv] separator` is the single character
 its fields are split on.
+
+The two sections below are alternatives, set up the one `mode` names.
 
 ### File Source
 
@@ -72,6 +76,8 @@ The generator renames complete `.cdr` files into the ready directory, so nothing
 written shows up. The processor watches that directory, renames a file into the
 processing directory to claim it, and moves it to done, or to failed when it does not
 parse. The directories are created on the first run.
+
+**Or**
 
 ### Rabbit Source
 
@@ -114,6 +120,27 @@ The `rabbitmq:3-management` image also serves the management web UI on port 1567
 http://localhost:15672      # user guest, password guest
 ```
 
+## Store
+
+The aggregated counters are written to Redis. Start a server:
+
+```bash
+docker run -d --name redis -p 6379:6379 redis:7
+# or, with redis installed on the host
+sudo systemctl start redis
+```
+
+```toml
+[redis]
+host       = "127.0.0.1" # redis server address
+port       = 6379        # redis server port
+timeout_ms = 1000        # connect and command timeout, milliseconds
+```
+
+The client (hiredis) is vendored, so only the server has to be running. Each thread opens
+its own connection and pipelines its `HINCRBY` commands, and the timeout covers both the
+connect and every command after it.
+
 ## Testing
 
 This project uses the [doctest](https://github.com/onqtam/doctest) library for testing,
@@ -155,6 +182,11 @@ fail_dir    = "records/failed"
 url       = "amqp://guest:guest@localhost/"
 queue     = "cdr"
 consumers = 4
+
+[redis]
+host       = "127.0.0.1"
+port       = 6379
+timeout_ms = 1000       # connect and command timeout
 
 [generator]
 rotate_seconds = 600    # seconds per .cdr file

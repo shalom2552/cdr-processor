@@ -233,6 +233,47 @@ nowhere. Calls and messages also add to the link between the two parties.
 One record is a handful of map lookups and integer adds, so the cost of a batch is the
 hashing, not the arithmetic.
 
+## Store
+
+`inc/store/istore.hpp`.
+
+`IStore::increment()` adds a value to one field of one key, `flush()` completes everything
+queued so far. Both are called from several threads at once, so an implementation owns its
+own locking or gives each thread its own state. Nothing about records or aggregates reaches
+this far: it is keys, fields and numbers.
+
+### Redis Store
+
+`inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
+
+One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline. Each thread
+opens its own connection on first use and frees it when the thread ends, so no lock is
+taken on the write path. Host, port and timeout come from `config.toml`, and the timeout
+covers the connect and every command after it.
+
+Commands go out without waiting for their replies. The pipeline drains itself once it holds
+`kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
+command. A reply that carries an error is counted as a failure and logged, so a rejected
+increment is not read as a write. A broken connection is freed and opened again on the next
+call, and the commands that were queued on it are lost and reported.
+
+Cost per increment is the append into the output buffer; the round trip is paid once per
+1024 commands instead of once each.
+
+### Aggregate Writer
+
+`inc/store/aggregate_writer.hpp`, `src/store/aggregate_writer.cpp`.
+
+Turns a folded `Delta` into store calls. Subscribers go to `sub:<msisdn>`, operators to
+`op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur` and `<peer>:sms` as fields, so a
+subscriber's peers are one hash and not one key per edge. Counters that are 0 are skipped
+rather than written, since the batch never touched them.
+
+It holds nothing but the store it writes to, so threads can share one writer if the store
+allows it. The key and field are built into two buffers that are reused down the whole
+delta, so a batch costs no allocation past the first entry. The store is flushed once at
+the end and the batch is reported failed if any counter or the flush failed.
+
 ## Sink
 
 `inc/sink/isink.hpp`.
