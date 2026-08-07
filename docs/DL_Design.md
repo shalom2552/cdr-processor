@@ -4,6 +4,16 @@ Core stuff lives at the top of `inc/` and `src/`. Anything bigger than one file 
 folder of its own. Vendored libraries stay out of both and live under `third_party/`:
 single headers at its top level, multi-file libraries in a folder of their own.
 
+## Design decisions
+
+A link is written in both directions from the one record that mentions the pair: owner to
+peer and peer to owner. The generator emits every record on its own, so the other leg of a
+call never arrives, and a peer that is never a subscriber still gets a hash of its own. A
+feed that carries both legs would count each call twice.
+
+A record with no subscriber MSISDN counts nowhere, and one with no second party gets no
+link.
+
 ## CDR Record
 
 `inc/cdr_record.hpp`.
@@ -205,6 +215,23 @@ them changes the hash.
 
 A subscriber entry is 72 bytes of counters plus the map's node, so a run over millions of
 subscribers is measured in hundreds of megabytes.
+
+## Aggregator
+
+`inc/aggregate/aggregator.hpp`, `src/aggregate/aggregator.cpp`.
+
+`fold()` walks a batch once and adds it into a `Delta`, which it clears first and whose
+buckets it reuses across calls. Nothing is kept between calls, so any number of threads can
+fold at the same time as long as each holds its own `Delta`.
+
+Each record adds to the subscriber's bucket, keyed by MSISDN. Calls add their seconds each
+way, messages count one each way, data adds its byte counts, and unanswered, busy and
+failed calls each get their own counter. The operator bucket is keyed by the MCCMNC of the
+subscriber's own IMSI and takes only voice and sms; an IMSI too short to hold one counts
+nowhere. Calls and messages also add to the link between the two parties.
+
+One record is a handful of map lookups and integer adds, so the cost of a batch is the
+hashing, not the arithmetic.
 
 ## Sink
 

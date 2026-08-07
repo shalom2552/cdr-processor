@@ -26,3 +26,6 @@ static constexpr size_t kRabbitBatchSize = kBatchSize;
 inline constexpr std::size_t kRabbitPrefetch  = 2 * kRabbitBatchSize;
 static_assert(kRabbitPrefetch <= UINT16_MAX, "amqp_basic_qos prefetch_count is uint16_t");
 
+// aggregate
+inline constexpr uint64_t kMsinDivisor = 10'000'000'000ULL; // strips MSIN, leaves MCCMNC
+

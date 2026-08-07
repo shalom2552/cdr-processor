@@ -100,6 +100,12 @@ once its records are in the sink, and anything unacked is redelivered.
 pair of subscribers. Plain structs, all counters start at 0. A pair is directed, so who
 called whom is kept apart.
 
+### Aggregator
+
+`Aggregator` folds a batch of records into the `Delta` they add up to: per subscriber, per
+operator, and per pair. It holds nothing between calls and touches no I/O, so threads can
+fold side by side, each into its own `Delta`.
+
 ### Sink
 
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,
