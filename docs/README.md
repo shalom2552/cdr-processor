@@ -9,7 +9,7 @@ over an API.
 - [x] Phase 0 - Buildable repo skeleton & CI
 - [x] Phase 1 - Core primitives, parser, config
 - [x] Phase 2 - Stream & ingest CDR files
-- [ ] Phase 3 - Subscriber, operator & graph aggregation
+- [x] Phase 3 - Subscriber, operator & graph aggregation
 - [ ] Phase 4 - REST query gateway API
 - [ ] Phase 5 - MySQL persistence across restarts
 - [ ] Phase 6 - Distributed harvesters & clients

@@ -280,7 +280,20 @@ the end and the batch is reported failed if any counter or the flush failed.
 
 `ISink::consume()` takes ownership of a batch of records. It is the far end of ingestion:
 the ingestor's workers call it from several threads at once, so an implementation owns its
-own locking. No sink is built yet.
+own locking.
+
+### Redis Sink
+
+`inc/sink/redis_sink.hpp`, `src/sink/redis_sink.cpp`.
+
+Holds an `Aggregator`, a `RedisStore` and an `AggregateWriter` over that store. `consume()`
+folds the batch into a `Delta`, writes it, and adds the batch size to a running total that
+`total()` hands back. Records that reached nothing are still counted.
+
+The `Delta` is one per thread and lives past the call, so its buckets are reused batch after
+batch and a steady stream allocates nothing. Nothing is locked: the fold reads only the
+batch, the total is one relaxed atomic add, and the store gives each thread its own
+connection. A batch that did not fully land is logged by the writer and dropped.
 
 ## Config
 

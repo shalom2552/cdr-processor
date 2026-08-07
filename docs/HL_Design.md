@@ -121,7 +121,13 @@ so the same batch can be written anywhere `IStore` is implemented.
 ### Sink
 
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,
-so a sink handles its own locking. None is built yet.
+so a sink handles its own locking.
+
+### Redis Sink
+
+`RedisSink` is the first sink: it folds each batch into a `Delta` and writes it to Redis
+through `AggregateWriter`. The fold buffer is per thread and reused, so batches cost no
+allocation. It also keeps a running count of the records it took.
 
 ### Mapped File
 

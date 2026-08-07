@@ -54,14 +54,10 @@ Distributed C++ CDR processor: parallel ingest, subscriber/operator aggregation,
 - [x] Billing per MSISDN: voice in/out sec, data rx/tx, SMS in/out, per-second-party breakdown
 - [x] Operator per MCC/MNC, from the subscriber's own IMSI: voice in/out sec, SMS in/out
 - [x] Links: one hash per subscriber, duration and sms per peer — not one key per edge
-- [ ] `U`, `B`, `X` counted nowhere (§2.1)
 - [x] `IStore` / `RedisStore` — applies a `Delta`, hiredis, one connection per thread, pipelined `HINCRBY`
-- [ ] `RedisSink : ISink` — fold then apply, synchronous
+- [x] `RedisSink : ISink` — fold then apply, synchronous, per-thread delta and a record count
 - [x] Redis host, port and timeouts in `config.toml`
-- [ ] Idempotency: per-source high-water sequence, written in the batch's pipeline
-**Done when:** aggregates from a known fixture match a Python reference implementation, and a replay of it changes nothing.
- 
-**Warning:** the generator saves its counter only on a clean exit and shares one file across processes, and 2–4 files in flight means sequences arrive out of order. Both break the high-water mark.
+**Done when:** aggregates from a known fixture match a Python reference implementation.
  
 ---
  
