@@ -1,5 +1,5 @@
-"""Records to a RabbitMQ queue. pika is imported here rather than at module load so the
-other modes keep working on a machine that never installed it."""
+"""Records to a RabbitMQ queue. pika is vendored under third_party and imported here
+rather than at module load, so the other modes never pay for it."""
 
 from __future__ import annotations
 
@@ -16,10 +16,8 @@ def _load_pika() -> ModuleType:
     except ModuleNotFoundError as exc:
         if exc.name != "pika":                  # pika is there but one of its own deps is not
             raise
-        fail("rabbit mode needs the 'pika' package, which is not installed",
-             "pip install pika",
-             "or on Arch: sudo pacman -S python-pika",
-             "or generate to files instead: python3 -m generator -f")
+        fail("the vendored 'pika' package is missing from third_party/",
+             "generate to files instead: python3 -m generator -f")
     return pika
 
 

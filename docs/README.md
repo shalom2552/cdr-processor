@@ -19,8 +19,7 @@ over an API.
 
 - `g++` with C++17 and `make`
 - `python3.11` or newer for the generator (it reads `config.toml` with `tomllib`)
-- `pika` and a running RabbitMQ broker, only for the rabbit source
-- a running Redis server, where the aggregated counters are written
+- `docker` and `docker compose`, which run the Redis server and the RabbitMQ broker
 
 `docker-compose.yml` brings up both with their data on named volumes:
 
@@ -31,9 +30,8 @@ docker compose ps             # wait until both are healthy
 docker compose down -v        # containers and both volumes, comes back empty
 ```
 
-The AMQP client (rabbitmq-c) and the Redis client (hiredis) are vendored at
-`third_party/rabbitmq-c` and `third_party/hiredis` and built by the Makefile, so nothing
-needs to be installed for the C++ side.
+Every library is vendored under `third_party/`: rabbitmq-c, hiredis, tomlplusplus and
+doctest for the C++ side, pika for the generator. Nothing else to install.
 
 ## Make Targets
 
@@ -90,15 +88,12 @@ parse. The directories are created on the first run.
 
 ### Rabbit Source
 
-Start a broker and install the generator's client:
+Start a broker:
 
 ```bash
 docker compose up -d rabbit
 # or, with rabbitmq installed on the host
 sudo systemctl start rabbitmq
-
-pip install pika            # Ubuntu/Debian
-sudo pacman -S python-pika  # Arch Linux
 ```
 
 ```toml
