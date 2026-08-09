@@ -66,9 +66,9 @@ $(BUILD)/hiredis/%.o: $(HIREDIS)/%.c
 SRC = $(shell find src -name '*.cpp')
 OBJ = $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC))
 
-APP_OBJ = $(filter-out $(OBJDIR)/main.o $(OBJDIR)/gateway_main.o,$(OBJ))
+APP_OBJ = $(filter-out $(OBJDIR)/processor_main.o $(OBJDIR)/gateway_main.o,$(OBJ))
 
-$(BIN): $(OBJDIR)/main.o $(APP_OBJ) $(THIRD_PARTY_OBJS)
+$(BIN): $(OBJDIR)/processor_main.o $(APP_OBJ) $(THIRD_PARTY_OBJS)
 	@mkdir -p $(@D)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 

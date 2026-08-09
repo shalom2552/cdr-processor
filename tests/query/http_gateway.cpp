@@ -3,7 +3,7 @@
 #include "constants.hpp"
 #include "query/http_gateway.hpp"
 #include "query/query_service.hpp"
-#include "store/iquery_store.hpp"
+#include "query/iquery_store.hpp"
 
 #include "httplib.h"
 #include <chrono>

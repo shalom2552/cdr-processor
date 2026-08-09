@@ -1,6 +1,6 @@
 #include "query/http_gateway.hpp"
 
-#include "query/json.hpp"
+#include "util/json.hpp"
 #include "config.hpp"
 #include "logger.hpp"
 

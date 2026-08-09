@@ -1,4 +1,4 @@
-#include "store/redis_query.hpp"
+#include "query/redis_query.hpp"
 
 #include "hiredis/read.h"
 #include "store/redis_conn.hpp"

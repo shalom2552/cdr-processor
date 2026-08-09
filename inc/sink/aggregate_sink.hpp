@@ -2,7 +2,7 @@
 
 #include "sink/isink.hpp"
 #include "cdr_record.hpp"
-#include "store/aggregate_writer.hpp"
+#include "aggregate/aggregate_writer.hpp"
 #include "aggregate/aggregator.hpp"
 #include "aggregate/totals.hpp"
 #include "store/istore.hpp"

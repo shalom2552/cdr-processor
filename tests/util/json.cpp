@@ -1,5 +1,5 @@
 #include "doctest.h"
-#include "query/json.hpp"
+#include "util/json.hpp"
 
 #include <cstdint>
 #include <string>

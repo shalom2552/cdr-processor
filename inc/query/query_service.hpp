@@ -1,6 +1,6 @@
 #pragma once
 
-#include "store/iquery_store.hpp"
+#include "query/iquery_store.hpp"
 
 #include <string>
 #include <unordered_map>

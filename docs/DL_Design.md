@@ -122,29 +122,6 @@ ends at the next message and every later call says `DONE`. The connection is hel
 reference and outlives the source. `parsed()` and `rejected()` are the running counts, and
 the parser is built once in the constructor, which throws when the format has no parser.
 
-## Dir Watcher
-
-`inc/source/dir_watcher.hpp`, `src/source/dir_watcher.cpp`.
-
-The sender writes a file somewhere else and renames it into the input directory, so a
-file that appears there is already whole. `DirWatcher` puts an inotify watch on that
-directory for `IN_MOVED_TO` and hands out one path at a time through `next_file`, which
-blocks until something arrives. It is not thread safe and expects a thread of its own.
-
-A file is claimed by renaming it from the input directory into the target directory.
-The rename is atomic on the same filesystem, so two processes watching the same input
-cannot both win the same file, and a file being worked on is no longer visible to a
-watcher that starts later. A rename that fails logs a warning and the file is left alone.
-
-Startup sweeps both directories: the target first, whose files are already claimed and
-go straight on the queue, then the input, whose files are claimed as if they had just
-arrived. That is what picks work back up after a crash. A watch that cannot be set up
-leaves the watcher not `ok()`, and `next_file` returns false instead of blocking.
-
-The wait is over `poll` on the inotify fd and an eventfd the watcher owns. `wake()`
-writes to that eventfd, which unblocks a waiting `next_file` and makes it return false;
-it is the one thread-safe entry point, so another thread can end the wait to shut down.
-
 ## Ingestor
 
 `inc/ingest/iingestor.hpp`.
@@ -195,6 +172,29 @@ batch, so acking costs one round trip per batch rather than per message. A read 
 that fails ends that thread and leaves the rest running; its messages are unacked, so the
 broker redelivers them. `stop()` sets the flag, joins every thread and closes the
 connections, and each thread logs what it parsed and what it rejected as it leaves.
+
+### Dir Watcher
+
+`inc/ingest/dir_watcher.hpp`, `src/ingest/dir_watcher.cpp`.
+
+The sender writes a file somewhere else and renames it into the input directory, so a
+file that appears there is already whole. `DirWatcher` puts an inotify watch on that
+directory for `IN_MOVED_TO` and hands out one path at a time through `next_file`, which
+blocks until something arrives. It is not thread safe and expects a thread of its own.
+
+A file is claimed by renaming it from the input directory into the target directory.
+The rename is atomic on the same filesystem, so two processes watching the same input
+cannot both win the same file, and a file being worked on is no longer visible to a
+watcher that starts later. A rename that fails logs a warning and the file is left alone.
+
+Startup sweeps both directories: the target first, whose files are already claimed and
+go straight on the queue, then the input, whose files are claimed as if they had just
+arrived. That is what picks work back up after a crash. A watch that cannot be set up
+leaves the watcher not `ok()`, and `next_file` returns false instead of blocking.
+
+The wait is over `poll` on the inotify fd and an eventfd the watcher owns. `wake()`
+writes to that eventfd, which unblocks a waiting `next_file` and makes it return false;
+it is the one thread-safe entry point, so another thread can end the wait to shut down.
 
 ## Delta
 
@@ -249,6 +249,27 @@ the block as the tail of one log message, a tab then the name padded then the va
 `fetch_add` per non-zero counter, `snapshot()` reads them back. No record touches an
 atomic, and a snapshot taken mid merge can hold part of a batch.
 
+## Aggregate Writer
+
+`inc/aggregate/aggregate_writer.hpp`, `src/aggregate/aggregate_writer.cpp`.
+
+Turns a folded `Delta` into store calls. Subscribers go to `sub:<msisdn>`, operators to
+`op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur` and `<peer>:sms` as fields, so a
+subscriber's peers are one hash and not one key per edge. Counters that are 0 are skipped
+rather than written, since the batch never touched them.
+
+It holds nothing but the store it writes to, so threads can share one writer if the store
+allows it. The key and field are built into two buffers that are reused down the whole
+delta, so a batch costs no allocation past the first entry. The store is flushed once at
+the end and the batch is reported failed if any counter or the flush failed.
+
+A second overload writes a batch's `Totals` to `total:proc`, fourteen fields at most. It
+queues and does not flush: it runs before the delta write, which drains both. The other
+way round the totals wait for the next batch and the last batch never goes out.
+
+The hash sums every run, the block logged at shutdown is one run, so a comparison starts
+with `redis-cli del total:proc`.
+
 ## Store
 
 `inc/store/istore.hpp`.
@@ -285,31 +306,6 @@ next call, and the commands that were queued on it are lost and reported.
 Cost per increment is the append into the output buffer; the round trip is paid once per
 1024 commands instead of once each.
 
-### Query Store
-
-`inc/store/iquery_store.hpp`.
-
-The read side of the same counters. `hgetall()` reads every field of one key, `hkeys()` the
-field names alone, `hmget()` the fields it is named. Each one clears the output first and
-returns false only when the store could not be reached, so a key that does not exist is a
-success with nothing in it. Calls come from several threads at once, and the interface
-carries keys, fields and strings, nothing about records or aggregates.
-
-### Redis Query
-
-`inc/store/redis_query.hpp`, `src/store/redis_query.cpp`.
-
-`HGETALL`, `HKEYS` and `HMGET` over this thread's `RedisConn` context, one round trip per
-call, no lock and no state of its own. Keys and field names go out as lengths and bytes, so
-a `string_view` over a larger buffer is read as it stands. Values come back as strings, and
-an element that is not a string reads as empty.
-
-A broken connection is logged and dropped, so the next call opens a new one, and the read
-returns false. A reply that carries an error is logged and also returns false, so a rejected
-read is never read as an empty key. `hmget()` with no field names asks nothing and succeeds.
-
-Cost per call is one round trip plus one allocation for the reply and one per value kept.
-
 ### Store Factory
 
 `inc/store/store_factory.hpp`, `src/store/store_factory.cpp`.
@@ -319,27 +315,6 @@ instance registers the stores it knows at construction, one line per backend, an
 `createStore()` builds a fresh one by name, or returns null when the name is not registered;
 `hasStore()` answers without building one. The name comes from `store.type`, so a new
 backend is one `registerStore` call and a class behind `IStore`, with nothing else to touch.
-
-### Aggregate Writer
-
-`inc/store/aggregate_writer.hpp`, `src/store/aggregate_writer.cpp`.
-
-Turns a folded `Delta` into store calls. Subscribers go to `sub:<msisdn>`, operators to
-`op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur` and `<peer>:sms` as fields, so a
-subscriber's peers are one hash and not one key per edge. Counters that are 0 are skipped
-rather than written, since the batch never touched them.
-
-It holds nothing but the store it writes to, so threads can share one writer if the store
-allows it. The key and field are built into two buffers that are reused down the whole
-delta, so a batch costs no allocation past the first entry. The store is flushed once at
-the end and the batch is reported failed if any counter or the flush failed.
-
-A second overload writes a batch's `Totals` to `total:proc`, fourteen fields at most. It
-queues and does not flush: it runs before the delta write, which drains both. The other
-way round the totals wait for the next batch and the last batch never goes out.
-
-The hash sums every run, the block logged at shutdown is one run, so a comparison starts
-with `redis-cli del total:proc`.
 
 ## Sink
 
@@ -365,19 +340,30 @@ Nothing is locked: the fold reads only the batch, the merge is fourteen relaxed 
 and the store gives each thread its own connection. A batch that did not fully land is
 logged by the writer and dropped.
 
-## Json
+## Query Store
 
-`inc/query/json.hpp`, `src/query/json.cpp`.
+`inc/query/iquery_store.hpp`.
 
-Builder of a flat JSON object for the query responses. `add()` takes a string, a number or
-a vector of strings and appends the field to one buffer, so the fields come out in the order
-they were added and `str()` only wraps that buffer in braces. `error()` builds the one field
-object the failing queries answer with.
+The read side of the same counters. `hgetall()` reads every field of one key, `hkeys()` the
+field names alone, `hmget()` the fields it is named. Each one clears the output first and
+returns false only when the store could not be reached, so a key that does not exist is a
+success with nothing in it. Calls come from several threads at once, and the interface
+carries keys, fields and strings, nothing about records or aggregates.
 
-Every name and every string value is written through `quoted()`, which escapes quotes,
-backslashes and control characters, so text that came in over HTTP cannot break the body.
-That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
-parsed and nothing is validated, so a caller that adds the same name twice writes it twice.
+## Redis Query
+
+`inc/query/redis_query.hpp`, `src/query/redis_query.cpp`.
+
+`HGETALL`, `HKEYS` and `HMGET` over this thread's `RedisConn` context, one round trip per
+call, no lock and no state of its own. Keys and field names go out as lengths and bytes, so
+a `string_view` over a larger buffer is read as it stands. Values come back as strings, and
+an element that is not a string reads as empty.
+
+A broken connection is logged and dropped, so the next call opens a new one, and the read
+returns false. A reply that carries an error is logged and also returns false, so a rejected
+read is never read as an empty key. `hmget()` with no field names asks nothing and succeeds.
+
+Cost per call is one round trip plus one allocation for the reply and one per value kept.
 
 ## Query Service
 
@@ -498,3 +484,17 @@ moves on.
 
 The file descriptor is closed right after the map, since the mapping keeps its own
 reference. Not copyable: two owners would unmap the same pages twice.
+
+## Json
+
+`inc/util/json.hpp`, `src/util/json.cpp`.
+
+Builder of a flat JSON object for the query responses. `add()` takes a string, a number or
+a vector of strings and appends the field to one buffer, so the fields come out in the order
+they were added and `str()` only wraps that buffer in braces. `error()` builds the one field
+object the failing queries answer with.
+
+Every name and every string value is written through `quoted()`, which escapes quotes,
+backslashes and control characters, so text that came in over HTTP cannot break the body.
+That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
+parsed and nothing is validated, so a caller that adds the same name twice writes it twice.

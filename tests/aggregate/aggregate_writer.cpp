@@ -1,6 +1,6 @@
 #include "doctest.h"
 #include "constants.hpp"
-#include "store/aggregate_writer.hpp"
+#include "aggregate/aggregate_writer.hpp"
 
 #include <cstdint>
 #include <string>

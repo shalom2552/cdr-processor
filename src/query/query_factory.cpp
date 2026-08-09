@@ -1,6 +1,6 @@
 #include "query/query_factory.hpp"
 
-#include "store/redis_query.hpp"
+#include "query/redis_query.hpp"
 #include "logger.hpp"
 
 #include <utility>

@@ -1,6 +1,6 @@
 #include "doctest.h"
 #include "config.hpp"
-#include "store/redis_query.hpp"
+#include "query/redis_query.hpp"
 #include "store/redis_store.hpp"
 
 #include <hiredis/hiredis.h>

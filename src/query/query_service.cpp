@@ -1,6 +1,6 @@
 #include "query/query_service.hpp"
 
-#include "query/json.hpp"
+#include "util/json.hpp"
 #include "constants.hpp"
 #include "logger.hpp"
 

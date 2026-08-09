@@ -1,4 +1,4 @@
-#include "store/aggregate_writer.hpp"
+#include "aggregate/aggregate_writer.hpp"
 
 #include "constants.hpp"
 #include "logger.hpp"

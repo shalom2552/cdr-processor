@@ -1,6 +1,6 @@
 #include "doctest.h"
 #include "query/query_factory.hpp"
-#include "store/iquery_store.hpp"
+#include "query/iquery_store.hpp"
 
 #include <memory>
 #include <string>
