@@ -9,6 +9,7 @@
 #include <deque>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 static constexpr std::string_view kComponent = "QueryService";
@@ -23,22 +24,39 @@ static uint64_t to_num(std::string_view value)
     return out;
 }
 
-/* The response name of one stored field, empty when the field is not reported */
-static std::string_view json_name(std::string_view field)
-{
-    if (field == kFieldVoiceOut) return kJsonVoiceOut;
-    if (field == kFieldVoiceIn)  return kJsonVoiceIn;
-    if (field == kFieldDataTx)   return kJsonDataOut;
-    if (field == kFieldDataRx)   return kJsonDataIn;
-    if (field == kFieldSmsOut)   return kJsonSmsOut;
-    if (field == kFieldSmsIn)    return kJsonSmsIn;
-    return {};
-}
-
 /* True for the byte counters, which are reported in KB */
 static bool is_bytes(std::string_view field)
 {
     return field == kFieldDataTx || field == kFieldDataRx;
+}
+
+/* The stored fields a subscriber is reported with, under the names they go out as */
+static constexpr std::pair<std::string_view, std::string_view> kSubFields[] = {
+    { kFieldVoiceOut, kJsonVoiceOut },
+    { kFieldVoiceIn,  kJsonVoiceIn  },
+    { kFieldDataTx,   kJsonDataOut  },
+    { kFieldDataRx,   kJsonDataIn   },
+    { kFieldSmsOut,   kJsonSmsOut   },
+    { kFieldSmsIn,    kJsonSmsIn    },
+};
+
+/* The stored fields an operator is reported with, under the names they go out as */
+static constexpr std::pair<std::string_view, std::string_view> kOpFields[] = {
+    { kFieldVoiceOut, kJsonVoiceOut },
+    { kFieldVoiceIn,  kJsonVoiceIn  },
+    { kFieldSmsOut,   kJsonSmsOut   },
+    { kFieldSmsIn,    kJsonSmsIn    },
+};
+
+/* One field of what the store returned as a number, 0 when the key does not hold it */
+static uint64_t field_num(const IQueryStore::Fields& fields, std::string_view field)
+{
+    for (const auto& [key, value] : fields) {
+        if (key == field) {
+            return to_num(value);
+        }
+    }
+    return 0;
 }
 
 QueryService::QueryService(const IQueryStore& store)
@@ -58,12 +76,8 @@ QueryService::Result QueryService::msisdn(std::string_view msisdn) const
 
     Json json;
     json.add("msisdn", msisdn);
-    for (const auto& [field, value] : fields) {
-        std::string_view name = json_name(field);
-        if (name.empty()) {
-            continue;
-        }
-        uint64_t num = to_num(value);
+    for (const auto& [field, name] : kSubFields) {
+        const uint64_t num = field_num(fields, field);
         json.add(name, is_bytes(field) ? num / kBytesPerKb : num);
     }
 
@@ -82,11 +96,8 @@ QueryService::Result QueryService::op(std::string_view mccmnc) const
 
     Json json;
     json.add("mccmnc", mccmnc);
-    for (const auto& [field, value] : fields) {
-        std::string_view name = json_name(field);
-        if (!name.empty()) {
-            json.add(name, to_num(value));
-        }
+    for (const auto& [field, name] : kOpFields) {
+        json.add(name, field_num(fields, field));
     }
 
     return { 200, json.str() };

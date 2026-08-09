@@ -165,6 +165,19 @@ traffic, a subscriber's peers, what a pair exchanged, and the path between two. 
 searched from both parties at once over the link hashes, bounded in hops and in subscribers
 visited. It knows the aggregate keys and nothing of HTTP, and hands back a status and a body.
 
+### Query Factory
+
+`QueryFactory` maps a store type to the read side of that store, the same name the writers
+are registered under. It builds one by name, or returns nothing when the name is unknown, so
+the gateway names no backend of its own.
+
+### Http Gateway
+
+The HTTP front of the query API: five routes over digits, each one a `QueryService` call sent
+back as JSON under the status it came with. It runs a thread pool of its own, one request per
+thread, and blocks until it is stopped. Unknown paths and handlers that throw are answered as
+JSON too, so a bad request never takes the listener down.
+
 ### Mapped File
 
 Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,

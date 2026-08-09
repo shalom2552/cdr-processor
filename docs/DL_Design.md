@@ -395,6 +395,32 @@ subscriber they share. One store read per subscriber expanded, and the search gi
 a 404 after `kMaxHops` rounds or `kMaxVisited` subscribers. Nothing is kept between calls but
 the store reference, so one instance serves every handler thread the store is safe for.
 
+## Query Factory
+
+`inc/query/query_factory.hpp`, `src/query/query_factory.cpp`.
+
+`QueryFactory` maps a store type to the read side of that store. A single shared instance
+registers what it knows at construction, one line per backend, and `createQuery()` builds a
+fresh one by name, or returns null when the name is not registered; `hasQuery()` answers
+without building one. The name is the same `store.type` the writers use, so both sides of one
+backend are registered together and the gateway names no class of its own.
+
+## Http Gateway
+
+`inc/query/http_gateway.hpp`, `src/query/http_gateway.cpp`.
+
+The HTTP front of the query API, cpp-httplib behind it. The constructor builds the server and
+binds five routes, each one a regex over digits that hands its captures to a `QueryService`
+call and sends what comes back as `application/json` under the status it came with. A path
+that matches no route answers 404 with a JSON body, and a handler that throws is logged and
+answered 500, so a failing query never takes the listener down.
+
+`run()` listens on `query.port` and blocks until `stop()`, which is safe to call from another
+thread. Requests are served by a thread pool of `query.concurrency` threads, one request at a
+time each, and the store gives every thread its own connection, so nothing is locked between
+handlers. The service reference is held, not copied, and the response body is moved into the
+response, so a query costs its store reads and one JSON buffer.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.

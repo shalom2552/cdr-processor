@@ -86,6 +86,15 @@ host       = "127.0.0.1" # redis server address
 port       = 6379        # redis server port
 timeout_ms = 1000        # connect and command timeout, milliseconds
 
+##################################### QUERY ####################################
+#
+# The gateway listens here. Concurrency is the number of handler threads, a request
+# holds one for as long as its lookup takes.
+
+[query]
+port        = 8080  # http port the query api listens on
+concurrency = 4     # handler threads, 0 for max
+
 ################################### GENERATOR ##################################
 #
 # The python generator writes synthetic records: `make gen`, with ARGS=-p, -f or -r

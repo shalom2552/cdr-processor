@@ -7,17 +7,21 @@ CDR_GEN  = generator
 
 OBJDIR   = $(BUILD)/obj
 BIN      = $(BUILD)/main
+GW_BIN   = $(BUILD)/gateway
 TEST_BIN = $(BUILD)/tests
 
 # ---- targets --------------------------------------------------------------
-.PHONY: all build run test gen debug release clean
+.PHONY: all build run query test gen debug release clean
 
-all: $(BIN) $(TEST_BIN)
+all: $(BIN) $(GW_BIN) $(TEST_BIN)
 
 build: $(BIN)
 
 run: $(BIN)
 	@./$(BIN)
+
+query: $(GW_BIN)
+	@./$(GW_BIN)
 
 test: $(TEST_BIN)
 	@./$(TEST_BIN)
@@ -62,7 +66,13 @@ $(BUILD)/hiredis/%.o: $(HIREDIS)/%.c
 SRC = $(shell find src -name '*.cpp')
 OBJ = $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC))
 
-$(BIN): $(OBJ) $(THIRD_PARTY_OBJS)
+APP_OBJ = $(filter-out $(OBJDIR)/main.o $(OBJDIR)/gateway_main.o,$(OBJ))
+
+$(BIN): $(OBJDIR)/main.o $(APP_OBJ) $(THIRD_PARTY_OBJS)
+	@mkdir -p $(@D)
+	$(CXX) $^ -o $@ $(LDFLAGS)
+
+$(GW_BIN): $(OBJDIR)/gateway_main.o $(APP_OBJ) $(THIRD_PARTY_OBJS)
 	@mkdir -p $(@D)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 
@@ -71,11 +81,10 @@ $(OBJDIR)/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # ---- tests ----------------------------------------------------------------
-LIB_OBJ  = $(filter-out $(OBJDIR)/main.o,$(OBJ))
 TEST_SRC = $(shell find tests -name '*.cpp')
 TEST_OBJ = $(patsubst tests/%.cpp,$(OBJDIR)/tests/%.o,$(TEST_SRC))
 
-$(TEST_BIN): $(TEST_OBJ) $(LIB_OBJ) $(THIRD_PARTY_OBJS)
+$(TEST_BIN): $(TEST_OBJ) $(APP_OBJ) $(THIRD_PARTY_OBJS)
 	@mkdir -p $(@D)
 	$(CXX) $^ -o $@ $(LDFLAGS)
 

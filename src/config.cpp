@@ -31,6 +31,8 @@ Config::Config()
     logDebug(kComponent, "redis: " + redis.host + ":" + std::to_string(redis.port)
         + ", timeout " + std::to_string(redis.timeout_ms) + "ms, store " + store.type);
     logDebug(kComponent, "log: " + log.level + " level");
+    logDebug(kComponent, "query: port " + std::to_string(query.port)
+        + ", " + std::to_string(query.concurrency) + " handlers");
 }
 
 void Config::load(std::string_view path)
@@ -42,6 +44,8 @@ void Config::load(std::string_view path)
         logError(kComponent, "cannot parse " + std::string(path) + ": " + std::string(e.description()));
         throw std::runtime_error("Configuration not loaded");
     }
+
+    log.level = t["log"]["level"].value_or<std::string>("info");
 
     source.mode = t["source"]["mode"].value_or<std::string>("file");
     source.format = t["source"]["format"].value_or<std::string>("csv");
@@ -65,11 +69,16 @@ void Config::load(std::string_view path)
     redis.port = t["redis"]["port"].value_or<int>(6379);
     redis.timeout_ms = t["redis"]["timeout_ms"].value_or<int>(1000);
 
-    log.level = t["log"]["level"].value_or<std::string>("info");
+    query.port = t["query"]["port"].value_or<int>(8080);
+    query.concurrency = t["query"]["concurrency"].value_or<std::size_t>(4);
 }
 
 void Config::validate()
 {
+    if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
+        std::string levels = "info, debug, warn, error";
+        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are" + levels + ".");
+    }
     if (source.mode != "file" && source.mode != "rabbit") {
         throw std::runtime_error("Invalid mode: " + source.mode + "\nValid modes are file and rabbit.");
     }
@@ -121,9 +130,13 @@ void Config::validate()
         throw std::runtime_error("Redis timeout must be greater than zero");
     }
 
-    if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
-        std::string levels = "info, debug, warn, error";
-        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are" + levels + ".");
+    if (query.port <= 0 || query.port > UINT16_MAX) {
+        throw std::runtime_error("Invalid query port: " + std::to_string(query.port));
+    }
+    if (query.concurrency == 0) {
+        unsigned n = std::thread::hardware_concurrency();
+        query.concurrency = (n == 0) ? 4 : n;
+        logInfo(kComponent, "setting max query handlers: " + std::to_string(query.concurrency));
     }
 }
 

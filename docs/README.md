@@ -66,7 +66,13 @@ Run the processor (second terminal):
 make run
 ```
 
-Stop either with `Ctrl-C`.
+Run the query gateway (third terminal):
+
+```bash
+make query
+```
+
+Stop any of them with `Ctrl-C`.
 
 ---
 
@@ -132,6 +138,16 @@ timeout_ms = 1000        # connect and command timeout, milliseconds
 
 Both modes read the same store.
 
+### Query Gateway
+
+```toml
+[query]
+port        = 8080  # http port the query api listens on
+concurrency = 4     # handler threads, 0 for max
+```
+
+A request holds one handler thread for as long as its lookup takes.
+
 Everything that is not configurable lives in `inc/constants.hpp`.
 
 ---
@@ -158,6 +174,27 @@ Four kinds of key, each one hash:
 | `link:<owner>` | `<peer>:dur` and `<peer>:sms`, one pair per peer |
 | `total:proc` | the fourteen totals fields |
 
+### Query API
+
+With `make query` running, on `[query] port`:
+
+```bash
+curl localhost:8080/query/msisdn/972500000001                # one subscriber's usage
+curl localhost:8080/query/operator/42502                     # one operator's traffic
+curl localhost:8080/query/link/972500000001                  # every peer of one subscriber
+curl localhost:8080/query/link/972500000001/972500000002     # what one pair exchanged
+curl localhost:8080/query/path/972500000001/972500000009     # the subscribers between two
+```
+
+Every answer is JSON. Parameters are digits only, anything else matches no route.
+
+| Status | When |
+| --- | --- |
+| 200 | answered |
+| 404 | never seen, or no such route |
+| 500 | the handler threw |
+| 503 | the store could not be reached |
+
 ### RabbitMQ
 
 What's in the queues:
@@ -183,6 +220,7 @@ python3 scripts/consume.py
 | --- | --- |
 | `make build` | builds the processor into `build/main` |
 | `make run` | builds and runs the processor |
+| `make query` | builds the gateway into `build/gateway` and runs it |
 | `make test` | builds and runs the unit tests |
 | `make gen` | runs the python generator in the configured mode |
 | `make debug` | builds with `-g -O0` and the address/undefined sanitizers |
