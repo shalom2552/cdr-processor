@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <string>
 
+constexpr std::string_view kComponent = "RedisStore";
+
 namespace cdrp {
 
 /* Commands this thread queued and has not drained */
@@ -29,7 +31,7 @@ bool RedisStore::increment(std::string_view key, std::string_view field, uint64_
     const int rc = redisAppendCommand(ctx, "HINCRBY %b %b %llu", key.data(), key.size(),
                                       field.data(), field.size(), static_cast<unsigned long long>(value));
     if (rc != REDIS_OK) {
-        logError("RedisStore", ctx->errstr);
+        logError(kComponent, ctx->errstr);
         return false;
     }
 
@@ -45,7 +47,7 @@ bool RedisStore::flush()
 
     redisContext* ctx = RedisConn::peek();
     if (!ctx || ctx->err) {
-        logError("RedisStore", "lost " + std::to_string(queued) + " queued commands");
+        logError(kComponent, "lost " + std::to_string(queued) + " queued commands");
         queued = 0;
         return false;
     }
@@ -55,18 +57,18 @@ bool RedisStore::flush()
     for (std::size_t i = 0; i < queued; ++i) {
         redisReply* reply = nullptr;
         if (redisGetReply(ctx, reinterpret_cast<void**>(&reply)) != REDIS_OK) {
-            logError("RedisStore", ctx->errstr);
+            logError(kComponent, ctx->errstr);
             ok = false;
             break; // context is broken
         }
         if (reply->type == REDIS_REPLY_ERROR) {
-            logWarn("RedisStore", reply->str ? reply->str : "command rejected");
+            logWarn(kComponent, reply->str ? reply->str : "command rejected");
             ok = false;
         }
         freeReplyObject(reply);
     }
 
-    logDebug("RedisStore", "drained " + std::to_string(queued) + " commands");
+    logDebug(kComponent, "drained " + std::to_string(queued) + " commands");
     queued = 0;
     return ok;
 }

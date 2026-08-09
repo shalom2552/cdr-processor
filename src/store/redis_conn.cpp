@@ -5,6 +5,8 @@
 
 #include <string>
 
+constexpr std::string_view kComponent = "RedisStore";
+
 namespace cdrp {
 
 RedisConn::Holder::~Holder()
@@ -50,14 +52,14 @@ redisContext* RedisConn::get()
     redisContext* ctx = redisConnectWithTimeout(cfg.redis.host.c_str(), cfg.redis.port, timeout);
 
     if (!ctx || ctx->err) {
-        logError("RedisStore", ctx ? ctx->errstr : "out of memory");
+        logError(kComponent, ctx ? ctx->errstr : "out of memory");
         if (ctx) redisFree(ctx);
         return nullptr;
     }
 
     redisSetTimeout(ctx, timeout);
     held.ctx = ctx;
-    logInfo("RedisStore", "connected to " + cfg.redis.host + ":" + std::to_string(cfg.redis.port));
+    logInfo(kComponent, "connected to " + cfg.redis.host + ":" + std::to_string(cfg.redis.port));
     return ctx;
 }
 

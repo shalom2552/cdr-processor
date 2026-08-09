@@ -6,6 +6,8 @@
 #include <charconv>
 #include <string>
 
+constexpr std::string_view kComponent = "AggregateWriter";
+
 namespace cdrp {
 
 namespace {
@@ -74,11 +76,11 @@ bool AggregateWriter::write(const Delta& delta)
     }
 
     if (!m_store.flush() || !ok) {
-        logWarn("AggregateWriter", "batch of " + std::to_string(delta.subs.size()) + " subscribers not fully written");
+        logWarn(kComponent, "batch of " + std::to_string(delta.subs.size()) + " subscribers not fully written");
         return false;
     }
 
-    logDebug("AggregateWriter", "wrote " + std::to_string(delta.subs.size()) + " subscribers, "
+    logDebug(kComponent, "wrote " + std::to_string(delta.subs.size()) + " subscribers, "
             + std::to_string(delta.ops.size()) + " operators, " + std::to_string(delta.links.size()) + " links");
     return true;
 }
@@ -103,7 +105,7 @@ bool AggregateWriter::write(const Totals& totals)
     ok = add(kTotalKey, kFieldDataTx, totals.data_tx) && ok;
 
     if (!ok) {
-        logWarn("AggregateWriter", "totals of " + std::to_string(totals.records) + " records not fully written");
+        logWarn(kComponent, "totals of " + std::to_string(totals.records) + " records not fully written");
     }
     return ok;
 }

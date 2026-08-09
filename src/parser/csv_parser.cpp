@@ -11,6 +11,8 @@
 #include <string>
 #include <string_view>
 
+constexpr std::string_view kComponent = "CsvParser";
+
 namespace cdrp {
 
 namespace {
@@ -85,7 +87,7 @@ bool parseDateTime(std::string_view date, std::string_view time, std::time_t& ou
 
 std::optional<CdrRecord> invalidLine(std::string_view line)
 {
-    logDebug("CsvParser", "invalid line: " + std::string(line));
+    logDebug(kComponent, "invalid line: " + std::string(line));
     return std::nullopt;
 }
 

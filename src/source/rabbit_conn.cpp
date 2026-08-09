@@ -7,6 +7,8 @@
 #include <vector>
 #include "rabbitmq-c/tcp_socket.h"
 
+constexpr std::string_view kComponent = "RabbitConn";
+
 namespace {
 
 std::string to_string(amqp_bytes_t b)
@@ -46,7 +48,7 @@ bool rpc_ok(amqp_rpc_reply_t reply, const char* what)
         return true;
     }
 
-    cdrp::logError("RabbitConn", std::string(what) + " failed: " + reason_of(reply));
+    cdrp::logError(kComponent, std::string(what) + " failed: " + reason_of(reply));
     return false;
 }
 
@@ -69,25 +71,25 @@ bool RabbitConn::open(const std::string& url, const std::string& queue)
     amqp_connection_info info;
     amqp_default_connection_info(&info);
     if (amqp_parse_url(buf.data(), &info) != AMQP_STATUS_OK) {
-        logError("RabbitConn", "bad url: " + url);
+        logError(kComponent, "bad url: " + url);
         return false;
     }
 
     m_conn = amqp_new_connection();
     if (!m_conn) {
-        logError("RabbitConn", "connection failed");
+        logError(kComponent, "connection failed");
         return false;
     }
 
     amqp_socket_t* socket = amqp_tcp_socket_new(m_conn);
     if (!socket) {
-        logError("RabbitConn", "socket failed");
+        logError(kComponent, "socket failed");
         close();
         return false;
     }
     const int opened = amqp_socket_open(socket, info.host, info.port);
     if (opened != AMQP_STATUS_OK) {
-        logError("RabbitConn", "connect failed " + std::string(info.host) + ":"
+        logError(kComponent, "connect failed " + std::string(info.host) + ":"
             + std::to_string(info.port) + ": " + amqp_error_string2(opened));
         close();
         return false;
@@ -95,7 +97,7 @@ bool RabbitConn::open(const std::string& url, const std::string& queue)
 
     const char* vhost = (info.vhost && *info.vhost) ? info.vhost : "/";
 
-    logDebug("RabbitConn", "login " + std::string(info.user) + "@" + info.host + " vhost " + vhost);
+    logDebug(kComponent, "login " + std::string(info.user) + "@" + info.host + " vhost " + vhost);
 
     const auto login = amqp_login(m_conn, vhost, 0, AMQP_DEFAULT_FRAME_SIZE, 0, AMQP_SASL_METHOD_PLAIN, info.user, info.password);
     if (!rpc_ok(login, "login")) {
@@ -122,7 +124,7 @@ bool RabbitConn::open(const std::string& url, const std::string& queue)
         return false;
     }
 
-    logInfo("RabbitConn", "consuming: " + queue + " prefetch " + std::to_string(kRabbitPrefetch));
+    logInfo(kComponent, "consuming: " + queue + " prefetch " + std::to_string(kRabbitPrefetch));
     return true;
 }
 
@@ -146,7 +148,7 @@ RabbitConn::Status RabbitConn::consume(Message& out, int timeout_ms)
             reply.library_error == AMQP_STATUS_TIMEOUT) {
             return Status::TIMEOUT;
         }
-        logError("RabbitConn", "consume failed: " + reason_of(reply));
+        logError(kComponent, "consume failed: " + reason_of(reply));
         return Status::FAIL;
     }
 
@@ -156,7 +158,7 @@ RabbitConn::Status RabbitConn::consume(Message& out, int timeout_ms)
                    : std::string();
     out.tag = env.delivery_tag;
 
-    logDebug("RabbitConn", "message " + std::to_string(out.tag) + ", " + std::to_string(out.body.size()) + " bytes");
+    logDebug(kComponent, "message " + std::to_string(out.tag) + ", " + std::to_string(out.body.size()) + " bytes");
 
     amqp_destroy_envelope(&env);
     return Status::OK;
@@ -169,7 +171,7 @@ bool RabbitConn::ack(uint64_t tag, bool multiple)
     }
 
     if (amqp_basic_ack(m_conn, kChannel, tag, multiple ? 1 : 0) != AMQP_STATUS_OK) {
-        logWarn("RabbitConn", "ack failed for tag " + std::to_string(tag));
+        logWarn(kComponent, "ack failed for tag " + std::to_string(tag));
         return false;
     }
 

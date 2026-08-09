@@ -9,6 +9,8 @@
 #include <string_view>
 #include <thread>
 
+constexpr std::string_view kComponent = "Config";
+
 namespace cdrp {
 
 Config::Config()
@@ -17,18 +19,18 @@ Config::Config()
     validate();
 
     Logger::instance().setLevel(Logger::levelFromName(log.level));
-    logDebug("Config", "loaded " + std::string(kConfigPath));
-    logDebug("Config", "source: " + source.mode + " mode, " + source.format + " format");
-    logDebug("Config", "csv: " + std::string(1, csv.separator) + " separator");
-    logDebug("Config", "file: " + std::to_string(file.readers) + " readers, ready " + file.ready_dir
+    logDebug(kComponent, "loaded " + std::string(kConfigPath));
+    logDebug(kComponent, "source: " + source.mode + " mode, " + source.format + " format");
+    logDebug(kComponent, "csv: " + std::string(1, csv.separator) + " separator");
+    logDebug(kComponent, "file: " + std::to_string(file.readers) + " readers, ready " + file.ready_dir
         + ", process " + file.process_dir);
-    logDebug("Config", "file: done " + file.done_dir + ", failed " + file.fail_dir
+    logDebug(kComponent, "file: done " + file.done_dir + ", failed " + file.fail_dir
         + ", rotate " + std::to_string(file.rotate_seconds) + "s");
-    logDebug("Config", "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
+    logDebug(kComponent, "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
         + rabbit.queue + ", url " + rabbit.url);
-    logDebug("Config", "redis: " + redis.host + ":" + std::to_string(redis.port)
+    logDebug(kComponent, "redis: " + redis.host + ":" + std::to_string(redis.port)
         + ", timeout " + std::to_string(redis.timeout_ms) + "ms, store " + store.type);
-    logDebug("Config", "log: " + log.level + " level");
+    logDebug(kComponent, "log: " + log.level + " level");
 }
 
 void Config::load(std::string_view path)
@@ -37,7 +39,7 @@ void Config::load(std::string_view path)
     try {
         t = toml::parse_file(path);
     } catch (const toml::parse_error& e) {
-        logError("Config", "cannot parse " + std::string(path) + ": " + std::string(e.description()));
+        logError(kComponent, "cannot parse " + std::string(path) + ": " + std::string(e.description()));
         throw std::runtime_error("Configuration not loaded");
     }
 
@@ -90,7 +92,7 @@ void Config::validate()
     if (file.readers == 0) {
         unsigned n = std::thread::hardware_concurrency();
         file.readers = (n == 0) ? 4 : n;
-        logInfo("Config", "setting max file readers: " + std::to_string(file.readers));
+        logInfo(kComponent, "setting max file readers: " + std::to_string(file.readers));
     }
     if (file.rotate_seconds <= 0) {
         throw std::runtime_error("Rotate seconds must be greater than zero");
@@ -102,7 +104,7 @@ void Config::validate()
     if (rabbit.consumers == 0) {
         unsigned n = std::thread::hardware_concurrency();
         rabbit.consumers = (n == 0) ? 4 : n;
-        logInfo("Config", "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
+        logInfo(kComponent, "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
     }
 
     if (store.type.empty()) {

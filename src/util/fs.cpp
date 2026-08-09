@@ -7,15 +7,17 @@
 
 namespace fs = std::filesystem;
 
+constexpr std::string_view kComponent = "fs";
+
 namespace cdrp {
 
 bool ensure_dir(const std::string& dir)
 {
     std::error_code ec;
     if (fs::create_directories(dir, ec)) {
-        logInfo("fs", "created: " + dir);
+        logInfo(kComponent, "created: " + dir);
     } else if (ec || !fs::is_directory(dir, ec)) {
-        logError("fs", "cannot create: " + dir + ": " + ec.message());
+        logError(kComponent, "cannot create: " + dir + ": " + ec.message());
         return false;
     }
     return true;

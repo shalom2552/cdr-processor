@@ -5,6 +5,8 @@
 
 #include <utility>
 
+constexpr std::string_view kComponent = "StoreFactory";
+
 namespace cdrp {
 
 StoreFactory::StoreFactory()
@@ -32,7 +34,7 @@ std::unique_ptr<IStore> StoreFactory::createStore(const std::string& name) const
 {
     auto it = m_stores.find(name);
     if (it == m_stores.end()) {
-        logDebug("StoreFactory", "no store for type: " + name);
+        logDebug(kComponent, "no store for type: " + name);
         return nullptr;
     } else {
         return it->second();
