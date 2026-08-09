@@ -5,7 +5,7 @@
 
 #include <string>
 
-constexpr std::string_view kComponent = "RedisStore";
+constexpr std::string_view kComponent = "RedisConn";
 
 namespace cdrp {
 

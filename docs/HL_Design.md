@@ -120,6 +120,13 @@ is the first one, one hash per key and every increment an `HINCRBY`. `RedisConn`
 connection under it, one per thread, so the write path takes no lock and a reader can share
 it.
 
+### Query Store
+
+`IQueryStore` is the read side of the same counters: every field of a key, the field names
+alone, or the fields it is named. `RedisQuery` is the first one, one Redis read per call over
+the same `RedisConn` the writers use. A key that does not exist reads as empty, and only an
+unreachable or rejecting server reads as a failure.
+
 ### Store Factory
 
 `StoreFactory` maps a store type to a store. It registers what it knows at startup and builds

@@ -285,6 +285,31 @@ next call, and the commands that were queued on it are lost and reported.
 Cost per increment is the append into the output buffer; the round trip is paid once per
 1024 commands instead of once each.
 
+### Query Store
+
+`inc/store/iquery_store.hpp`.
+
+The read side of the same counters. `hgetall()` reads every field of one key, `hkeys()` the
+field names alone, `hmget()` the fields it is named. Each one clears the output first and
+returns false only when the store could not be reached, so a key that does not exist is a
+success with nothing in it. Calls come from several threads at once, and the interface
+carries keys, fields and strings, nothing about records or aggregates.
+
+### Redis Query
+
+`inc/store/redis_query.hpp`, `src/store/redis_query.cpp`.
+
+`HGETALL`, `HKEYS` and `HMGET` over this thread's `RedisConn` context, one round trip per
+call, no lock and no state of its own. Keys and field names go out as lengths and bytes, so
+a `string_view` over a larger buffer is read as it stands. Values come back as strings, and
+an element that is not a string reads as empty.
+
+A broken connection is logged and dropped, so the next call opens a new one, and the read
+returns false. A reply that carries an error is logged and also returns false, so a rejected
+read is never read as an empty key. `hmget()` with no field names asks nothing and succeeds.
+
+Cost per call is one round trip plus one allocation for the reply and one per value kept.
+
 ### Store Factory
 
 `inc/store/store_factory.hpp`, `src/store/store_factory.cpp`.
