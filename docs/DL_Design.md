@@ -258,20 +258,29 @@ queued so far. Both are called from several threads at once, so an implementatio
 own locking or gives each thread its own state. Nothing about records or aggregates reaches
 this far: it is keys, fields and numbers.
 
+### Redis Conn
+
+`inc/store/redis_conn.hpp`, `src/store/redis_conn.cpp`.
+
+One context per thread, opened on first use and freed when the thread ends. `get()` opens
+it, and opens a new one when the old broke; `peek()` returns it without opening; `drop()`
+frees it. Host, port and timeout come from `config.toml`, and the timeout covers the
+connect and every command after it. It knows nothing about pipelines or commands, so a
+read side reuses it as it is.
+
 ### Redis Store
 
 `inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
 
-One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline. Each thread
-opens its own connection on first use and frees it when the thread ends, so no lock is
-taken on the write path. Host, port and timeout come from `config.toml`, and the timeout
-covers the connect and every command after it.
+One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline on this
+thread's `RedisConn` context, so no lock is taken on the write path. The pipeline depth is
+the store's own, one counter per thread.
 
 Commands go out without waiting for their replies. The pipeline drains itself once it holds
 `kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
 command. A reply that carries an error is counted as a failure and logged, so a rejected
-increment is not read as a write. A broken connection is freed and opened again on the next
-call, and the commands that were queued on it are lost and reported.
+increment is not read as a write. A broken connection is dropped and opened again on the
+next call, and the commands that were queued on it are lost and reported.
 
 Cost per increment is the append into the output buffer; the round trip is paid once per
 1024 commands instead of once each.

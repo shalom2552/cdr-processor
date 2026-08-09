@@ -3,6 +3,8 @@
 #include "constants.hpp"
 #include "store/redis_store.hpp"
 
+#include <hiredis/hiredis.h>
+
 #include <chrono>
 #include <string>
 #include <thread>

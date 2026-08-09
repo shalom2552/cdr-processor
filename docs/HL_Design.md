@@ -116,8 +116,9 @@ consumed can be put side by side.
 ### Store
 
 `IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
-is the first one, one hash per key and every increment an `HINCRBY`. Each thread gets its
-own connection and pipeline, so the write path takes no lock.
+is the first one, one hash per key and every increment an `HINCRBY`. `RedisConn` holds the
+connection under it, one per thread, so the write path takes no lock and a reader can share
+it.
 
 ### Store Factory
 

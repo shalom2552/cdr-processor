@@ -2,9 +2,6 @@
 
 #include "store/istore.hpp"
 
-#include <hiredis/hiredis.h>
-#include <cstddef>
-
 namespace cdrp {
 
 /**
@@ -23,20 +20,6 @@ public:
 
     /* Reads the replies of every queued command, leaving the pipeline empty */
     bool flush() override;
-
-private:
-    /* This thread's connection and pipeline depth, opened on first use */
-    struct Conn {
-        redisContext* ctx = nullptr;
-        std::size_t queued = 0;
-        ~Conn();
-    };
-
-    /* This thread's connection, reconnected when it broke, null when it cannot open */
-    static Conn& conn();
-
-    /* This thread's connection as it stands, opened or not */
-    static Conn& raw();
 
 };
 
