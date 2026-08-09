@@ -106,6 +106,13 @@ called whom is kept apart.
 operator, and per pair. It holds nothing between calls and touches no I/O, so threads can
 fold side by side, each into its own `Delta`.
 
+### Totals
+
+`Totals` counts what a batch was made of, per usage type rather than per subscriber.
+`RunTotals` is the same counters for the whole run, added to once per batch from any
+thread. The generator counts the same fourteen fields, so what was emitted and what was
+consumed can be put side by side.
+
 ### Store
 
 `IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
@@ -115,8 +122,9 @@ own connection and pipeline, so the write path takes no lock.
 ### Aggregate Writer
 
 `AggregateWriter` writes a folded `Delta` into a store: subscribers, operators, and one hash
-of peers per subscriber. It knows the key names and nothing about the store behind them,
-so the same batch can be written anywhere `IStore` is implemented.
+of peers per subscriber. It also writes a batch's `Totals` under one hash of its own. It
+knows the key names and nothing about the store behind them, so the same batch can be
+written anywhere `IStore` is implemented.
 
 ### Sink
 
@@ -127,7 +135,8 @@ so a sink handles its own locking.
 
 `RedisSink` is the first sink: it folds each batch into a `Delta` and writes it to Redis
 through `AggregateWriter`. The fold buffer is per thread and reused, so batches cost no
-allocation. It also keeps a running count of the records it took.
+allocation. It also counts every batch into the `RunTotals` of the run, logged when the
+run ends.
 
 ### Mapped File
 

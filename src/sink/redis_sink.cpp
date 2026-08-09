@@ -15,16 +15,19 @@ RedisSink::RedisSink()
 void RedisSink::consume(std::vector<CdrRecord>& batch)
 {
     thread_local Delta delta;
+    Totals batchTotals;
 
     m_aggregator.fold(batch, delta);
-    m_total.fetch_add(batch.size(), std::memory_order_relaxed);
+    batchTotals.add(batch);
+    m_totals.merge(batchTotals);
 
+    m_writer.write(batchTotals);
     m_writer.write(delta);
 }
 
-std::size_t RedisSink::total() const
+Totals RedisSink::snapshot() const
 {
-    return m_total.load(std::memory_order_relaxed); 
+    return m_totals.snapshot();
 }
 
 

@@ -50,3 +50,21 @@ inline constexpr std::string_view kFieldFailed = "failed";
 inline constexpr std::string_view kFieldDurSuffix = ":dur";
 inline constexpr std::string_view kFieldSmsSuffix = ":sms";
 
+// totals key
+inline constexpr std::string_view kTotalKey = "total:proc";
+
+// totals fields, the usage types rather than the aggregate names
+inline constexpr std::string_view kFieldRecords = "records";
+inline constexpr std::string_view kFieldMocCnt = "moc_cnt";
+inline constexpr std::string_view kFieldMtcCnt = "mtc_cnt";
+inline constexpr std::string_view kFieldSmsMoCnt = "sms_mo_cnt";
+inline constexpr std::string_view kFieldSmsMtCnt = "sms_mt_cnt";
+inline constexpr std::string_view kFieldDataCnt = "data_cnt";
+inline constexpr std::string_view kFieldNoansCnt = "noans_cnt";
+inline constexpr std::string_view kFieldBusyCnt = "busy_cnt";
+inline constexpr std::string_view kFieldFailedCnt = "failed_cnt";
+inline constexpr std::string_view kFieldMocDur = "moc_dur";
+inline constexpr std::string_view kFieldMtcDur = "mtc_dur";
+inline constexpr std::string_view kFieldDataDur = "data_dur";
+inline constexpr std::size_t kTotalsNameWidth = 12; // values line up past the longest name
+

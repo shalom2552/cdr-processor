@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aggregate/delta.hpp"
+#include "aggregate/totals.hpp"
 #include "store/istore.hpp"
 
 namespace cdrp {
@@ -26,6 +27,16 @@ public:
      * @return false when any counter failed to be written
      */
     bool write(const Delta& delta);
+
+    /**
+     * Writes every non-zero counter of the batch under the run's hash, without flushing:
+     * the delta write that follows drains what both of them queued. Written the other way
+     * round the totals sit in the pipeline until the next batch.
+     *
+     * @param totals: one batch's counters
+     * @return false when any counter failed to be written
+     */
+    bool write(const Totals& totals);
 
 private:
     /* Add one counter, skipping the write when there is nothing to add */

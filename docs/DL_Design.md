@@ -233,6 +233,22 @@ nowhere. Calls and messages also add to the link between the two parties.
 One record is a handful of map lookups and integer adds, so the cost of a batch is the
 hashing, not the arithmetic.
 
+## Totals
+
+`inc/aggregate/totals.hpp`, `src/aggregate/totals.cpp`.
+
+Fourteen counters, flat for the whole run instead of the per subscriber buckets of a
+`Delta`. Named after the usage types, since the generator counts the same fourteen and has
+no subscribers to key them by. `data_dur` is counted although the aggregates never use it.
+
+`Totals` is a plain struct. `add()` counts one record or a batch, before any check a
+`Delta` makes, so a record without a subscriber MSISDN still counts. `format()` renders
+the block as the tail of one log message, a tab then the name padded then the value.
+
+`RunTotals` is the same counters as atomics: `merge()` folds a batch in with one relaxed
+`fetch_add` per non-zero counter, `snapshot()` reads them back. No record touches an
+atomic, and a snapshot taken mid merge can hold part of a batch.
+
 ## Store
 
 `inc/store/istore.hpp`.
@@ -274,6 +290,13 @@ allows it. The key and field are built into two buffers that are reused down the
 delta, so a batch costs no allocation past the first entry. The store is flushed once at
 the end and the batch is reported failed if any counter or the flush failed.
 
+A second overload writes a batch's `Totals` to `total:proc`, fourteen fields at most. It
+queues and does not flush: it runs before the delta write, which drains both. The other
+way round the totals wait for the next batch and the last batch never goes out.
+
+The hash sums every run, the block logged at shutdown is one run, so a comparison starts
+with `redis-cli del total:proc`.
+
 ## Sink
 
 `inc/sink/isink.hpp`.
@@ -287,13 +310,15 @@ own locking.
 `inc/sink/redis_sink.hpp`, `src/sink/redis_sink.cpp`.
 
 Holds an `Aggregator`, a `RedisStore` and an `AggregateWriter` over that store. `consume()`
-folds the batch into a `Delta`, writes it, and adds the batch size to a running total that
-`total()` hands back. Records that reached nothing are still counted.
+folds the batch into a `Delta` and a `Totals`, merges the totals into the run's `RunTotals`,
+then writes both. `snapshot()` hands the run's counters back, records that reached nothing
+included.
 
 The `Delta` is one per thread and lives past the call, so its buckets are reused batch after
-batch and a steady stream allocates nothing. Nothing is locked: the fold reads only the
-batch, the total is one relaxed atomic add, and the store gives each thread its own
-connection. A batch that did not fully land is logged by the writer and dropped.
+batch and a steady stream allocates nothing. The `Totals` is one per call, on the stack.
+Nothing is locked: the fold reads only the batch, the merge is fourteen relaxed atomic adds,
+and the store gives each thread its own connection. A batch that did not fully land is
+logged by the writer and dropped.
 
 ## Config
 

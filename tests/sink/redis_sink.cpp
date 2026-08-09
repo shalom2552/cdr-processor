@@ -136,7 +136,7 @@ TEST_CASE("redis_sink_starts_with_a_total_of_zero")
 {
     const RedisSink sink;
 
-    CHECK(sink.total() == 0);
+    CHECK(sink.snapshot().records == 0);
 }
 
 TEST_CASE("redis_sink_counts_the_records_of_every_batch_it_took")
@@ -149,7 +149,9 @@ TEST_CASE("redis_sink_counts_the_records_of_every_batch_it_took")
     sink.consume(empty);
     sink.consume(batch);
 
-    CHECK(sink.total() == 6);
+    CHECK(sink.snapshot().records == 6);
+    CHECK(sink.snapshot().moc_cnt == 6);
+    CHECK(sink.snapshot().moc_dur == 360);
 }
 
 TEST_CASE("redis_sink_counts_a_record_that_fell_nowhere")
@@ -160,7 +162,8 @@ TEST_CASE("redis_sink_counts_a_record_that_fell_nowhere")
 
     sink.consume(batch);
 
-    CHECK(sink.total() == 1);
+    CHECK(sink.snapshot().records == 1);
+    CHECK(sink.snapshot().moc_cnt == 1);
 }
 
 TEST_CASE("redis_sink_counts_every_thread_into_one_total")
@@ -181,7 +184,8 @@ TEST_CASE("redis_sink_counts_every_thread_into_one_total")
         thread.join();
     }
 
-    CHECK(sink.total() == 2 * 4 * rounds);
+    CHECK(sink.snapshot().records == 2 * 4 * rounds);
+    CHECK(sink.snapshot().sms_mo_cnt == 2 * 4 * rounds);
 }
 
 TEST_CASE("redis_sink_takes_a_batch_of_records_without_a_subscriber")

@@ -4,10 +4,9 @@
 #include "cdr_record.hpp"
 #include "store/aggregate_writer.hpp"
 #include "aggregate/aggregator.hpp"
+#include "aggregate/totals.hpp"
 #include "store/redis_store.hpp"
 
-#include <atomic>
-#include <cstddef>
 #include <vector>
 
 namespace cdrp {
@@ -30,18 +29,19 @@ public:
     void consume(std::vector<CdrRecord>& batch) override;
 
     /**
-     * The records taken so far, counted whether or not they reached Redis.
+     * What this run took, counted whether or not it reached Redis. The hash in Redis
+     * holds every run since it was last cleared, this holds one.
      *
-     * @return the number of records passed to consume()
+     * @return the counters of the records passed to consume()
      */
-    std::size_t total() const;
+    Totals snapshot() const;
 
 private:
     Aggregator m_aggregator;
     RedisStore m_store;
     AggregateWriter m_writer;
 
-    std::atomic<std::size_t> m_total = 0;
+    RunTotals m_totals;
 };
 
 } // namespace cdrp

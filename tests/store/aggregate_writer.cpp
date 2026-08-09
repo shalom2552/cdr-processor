@@ -252,3 +252,109 @@ TEST_CASE("aggregate_writer_can_be_used_through_a_second_write")
     CHECK(store.calls.size() == 2);
     CHECK(store.flushes == 2);
 }
+
+TEST_CASE("aggregate_writer_writes_nothing_for_totals_of_an_empty_batch")
+{
+    FakeStore store;
+    AggregateWriter writer(store);
+
+    CHECK(writer.write(Totals {}));
+
+    CHECK(store.calls.empty());
+    CHECK(store.flushes == 0);
+}
+
+TEST_CASE("aggregate_writer_writes_every_total_under_the_run_hash")
+{
+    FakeStore store;
+    AggregateWriter writer(store);
+    Totals totals;
+    totals.records = 8;
+    totals.moc_cnt = 1;
+    totals.mtc_cnt = 2;
+    totals.sms_mo_cnt = 3;
+    totals.sms_mt_cnt = 4;
+    totals.data_cnt = 5;
+    totals.noans_cnt = 6;
+    totals.busy_cnt = 7;
+    totals.failed_cnt = 9;
+    totals.moc_dur = 3314;
+    totals.mtc_dur = 120;
+    totals.data_dur = 60;
+    totals.data_rx = 8215;
+    totals.data_tx = 9273;
+
+    CHECK(writer.write(totals));
+
+    const std::string key = std::string(kTotalKey);
+    CHECK(store.calls.size() == 14);
+    CHECK(store.valueOf(key, std::string(kFieldRecords)) == 8);
+    CHECK(store.valueOf(key, std::string(kFieldMocCnt)) == 1);
+    CHECK(store.valueOf(key, std::string(kFieldMtcCnt)) == 2);
+    CHECK(store.valueOf(key, std::string(kFieldSmsMoCnt)) == 3);
+    CHECK(store.valueOf(key, std::string(kFieldSmsMtCnt)) == 4);
+    CHECK(store.valueOf(key, std::string(kFieldDataCnt)) == 5);
+    CHECK(store.valueOf(key, std::string(kFieldNoansCnt)) == 6);
+    CHECK(store.valueOf(key, std::string(kFieldBusyCnt)) == 7);
+    CHECK(store.valueOf(key, std::string(kFieldFailedCnt)) == 9);
+    CHECK(store.valueOf(key, std::string(kFieldMocDur)) == 3314);
+    CHECK(store.valueOf(key, std::string(kFieldMtcDur)) == 120);
+    CHECK(store.valueOf(key, std::string(kFieldDataDur)) == 60);
+    CHECK(store.valueOf(key, std::string(kFieldDataRx)) == 8215);
+    CHECK(store.valueOf(key, std::string(kFieldDataTx)) == 9273);
+}
+
+TEST_CASE("aggregate_writer_skips_the_zero_totals")
+{
+    FakeStore store;
+    AggregateWriter writer(store);
+    Totals totals;
+    totals.records = 2;
+    totals.busy_cnt = 2;
+
+    CHECK(writer.write(totals));
+
+    CHECK(store.calls.size() == 2);
+    CHECK(store.valueOf(std::string(kTotalKey), std::string(kFieldRecords)) == 2);
+    CHECK(store.valueOf(std::string(kTotalKey), std::string(kFieldBusyCnt)) == 2);
+}
+
+TEST_CASE("aggregate_writer_leaves_the_totals_for_the_delta_write_to_flush")
+{
+    FakeStore store;
+    AggregateWriter writer(store);
+    Totals totals;
+    totals.records = 2;
+    Delta delta;
+    delta.subs[972528409042ULL].voice_out = 60;
+
+    CHECK(writer.write(totals));
+    CHECK(store.flushes == 0);
+    CHECK(writer.write(delta));
+
+    CHECK(store.calls.size() == 2);
+    CHECK(store.flushes == 1);
+}
+
+TEST_CASE("aggregate_writer_fails_when_the_store_refuses_a_total")
+{
+    FakeStore store;
+    store.incrementOk = false;
+    AggregateWriter writer(store);
+    Totals totals;
+    totals.records = 2;
+
+    CHECK_FALSE(writer.write(totals));
+}
+
+TEST_CASE("aggregate_writer_writes_a_total_larger_than_a_32_bit_counter")
+{
+    FakeStore store;
+    AggregateWriter writer(store);
+    Totals totals;
+    totals.data_rx = 8589934592ULL;
+
+    CHECK(writer.write(totals));
+
+    CHECK(store.valueOf(std::string(kTotalKey), std::string(kFieldDataRx)) == 8589934592LL);
+}

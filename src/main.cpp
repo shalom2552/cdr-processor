@@ -1,8 +1,7 @@
 #include "config.hpp"
-#include "ingest/ingestor_factory.hpp"
 #include "logger.hpp"
-
 #include "sink/redis_sink.hpp"
+#include "ingest/ingestor_factory.hpp"
 
 #include <csignal>
 
@@ -19,11 +18,15 @@ void run()
         return;
     }
 
-    if (!ingestor->start()) { return; }
-    while (!g_stop.load()) { pause(); } // wake on SIGINT
+    if (!ingestor->start()) {
+        return;
+    }
+    while (!g_stop.load()) {
+        pause(); // wake on SIGINT
+    }
 
     ingestor->stop();
-    logInfo("Main", "consumed " + std::to_string(sink.total()) + " records");
+    logInfo("Main", "totals of this run:" + sink.snapshot().format());
 }
 
 int main()
