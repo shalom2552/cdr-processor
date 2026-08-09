@@ -15,51 +15,91 @@ over an API.
 - [ ] Phase 6 - Distributed harvesters & clients
 - [ ] Phase 7 - Profiling, tests & deliverables
 
+---
+
 ## Prerequisites
 
 - `g++` with C++17 and `make`
 - `python3.11` or newer for the generator (it reads `config.toml` with `tomllib`)
 - `docker` and `docker compose`, which run the Redis server and the RabbitMQ broker
 
-`docker-compose.yml` brings up both with their data on named volumes:
-
-```bash
-docker compose up -d          # redis and rabbit
-docker compose up -d redis    # redis alone
-docker compose ps             # wait until both are healthy
-docker compose down -v        # containers and both volumes, comes back empty
-```
-
 Every library is vendored under `third_party/`: rabbitmq-c, hiredis, tomlplusplus and
 doctest for the C++ side, pika for the generator. Nothing else to install.
 
-## Make Targets
+---
 
-| Target | What it does |
-| --- | --- |
-| `make build` | builds the processor into `build/main` |
-| `make run` | builds and runs the processor |
-| `make test` | builds and runs the unit tests |
-| `make gen` | runs the python generator in the configured mode |
-| `make debug` | builds with `-g -O0` and the address/undefined sanitizers |
-| `make release` | builds with `-O2 -DNDEBUG` |
-| `make clean` | removes `build/` |
+## Build
 
-## Sources
+Build the processor:
 
-`[source] mode` in `config.toml` picks where records come from, `file` or `rabbit`. Both
-sides read it, so the one switch points the generator and the processor at the same place.
-`csv` is the only supported format, and `[source.csv] separator` is the single character
-its fields are split on.
+```bash
+make build
+```
 
-The two sections below are alternatives, set up the one `mode` names.
+Start the Redis DB:
+
+```bash
+docker compose up -d redis
+```
+
+For rabbit mode, also:
+
+```bash
+docker compose up -d rabbit
+```
+
+---
+
+## Testing
+
+```bash
+make test
+```
+
+Written with [doctest](https://github.com/onqtam/doctest), vendored at
+`third_party/doctest.h`.
+
+---
+
+## Run
+
+Generate records:
+
+```bash
+make gen
+```
+
+Run the processor (second terminal):
+
+```bash
+make run
+```
+
+Stop either with `Ctrl-C`.
+
+---
+
+## Configuration
+
+`config.toml` at the project root:
+
+```toml
+[log]
+level = "info"          # debug, info, warn, error, none
+
+[source]
+mode   = "file"         # file or rabbit
+format = "csv"          # csv is the only supported format
+
+[source.csv]
+separator = "|"         # one character separating the record fields
+```
+
+`mode` picks the source, and both sides read it.
 
 ### File Source
 
 ```toml
-[source]
-mode = "file"
-
 [source.file]
 readers     = 4                     # reader threads, 0 for one per core
 ready_dir   = "records/ready/"      # the generator drops .cdr files here
@@ -72,67 +112,20 @@ rotate_seconds = 600                # seconds of records per .cdr file
 gen_interval = 0.001                # seconds between records
 ```
 
-Two terminals:
-
-```bash
-make gen    # writes records/ready/<timestamp>.cdr
-make run    # consumes them
-```
-
-The generator renames complete `.cdr` files into the ready directory, so nothing half
-written shows up. The processor watches that directory, renames a file into the
-processing directory to claim it, and moves it to done, or to failed when it does not
-parse. The directories are created on the first run.
-
-**Or**
+Paths are relative to the project root.
 
 ### Rabbit Source
 
-Start a broker:
-
-```bash
-docker compose up -d rabbit
-# or, with rabbitmq installed on the host
-sudo systemctl start rabbitmq
-```
-
 ```toml
-[source]
-mode = "rabbit"
-
 [source.rabbit]
 url       = "amqp://guest:guest@localhost/" # broker, with credentials
 queue     = "cdr"                           # queue the records go through
 consumers = 4                               # consumer threads, 0 for one per core
 ```
 
-Two terminals:
+Both sides read `queue`.
 
-```bash
-make gen    # publishes to the queue
-make run    # consumes it
-```
-
-Each record is one message on a durable queue. A consumer owns one connection and one
-thread, and acks a message once it is handled, so anything left unacked is redelivered.
-`scripts/consume.py` drains the queue on its own, for checking what the generator put
-there without running the processor.
-
-The `rabbitmq:3-management` image also serves the management web UI on port 15672:
-
-```
-http://localhost:15672      # user guest, password guest
-```
-
-## Store
-
-The aggregated counters are written to Redis. Start a server:
-
-```bash
-docker compose up -d redis
-# or, with redis installed on the host
-sudo systemctl start redis
-```
+### Store
 
 ```toml
 [redis]
@@ -141,16 +134,17 @@ port       = 6379        # redis server port
 timeout_ms = 1000        # connect and command timeout, milliseconds
 ```
 
-The client (hiredis) is vendored, so only the server has to be running. Each thread opens
-its own connection and pipelines its `HINCRBY` commands, and the timeout covers both the
-connect and every command after it.
+Redis is used in both modes.
 
-The compose service runs with the append-only file on and its data on a named volume, so
-the counters are reloaded when the server comes back. `docker compose down -v` drops them.
+Everything that is not configurable lives in `inc/constants.hpp`.
+
+---
 
 ## Inspecting
 
-What the processor wrote to Redis:
+### Redis
+
+Inspect redis with `redis-cli`:
 
 ```bash
 docker exec redis redis-cli hgetall total:proc            # the run totals, all 14 fields
@@ -168,68 +162,47 @@ Four kinds of key, each one hash:
 | `link:<owner>` | `<peer>:dur` and `<peer>:sms`, one pair per peer |
 | `total:proc` | the fourteen totals fields |
 
-What is sitting in the queue:
+### RabbitMQ
+
+What's in the queues:
 
 ```bash
-docker exec rabbit rabbitmqctl list_queues name messages messages_unacknowledged consumers
-docker compose logs -f rabbit                             # broker log
-python3 scripts/consume.py                                # drain and print the messages
+docker exec rabbit rabbitmqctl list_queues            # queues, and what is waiting in them
+docker compose logs -f rabbit                         # broker log
 ```
 
-`messages_unacknowledged` is what a consumer took but has not acked yet, so it is what
-would be redelivered if the processor died right now. The management UI at
-`http://localhost:15672` (user `guest`, password `guest`) shows the same numbers as a graph.
+Web UI: <http://localhost:15672>, user `guest`, password `guest`.
 
-## Testing
-
-This project uses the [doctest](https://github.com/onqtam/doctest) library for testing,
-vendored at `third_party/doctest.h`.
-
-To run tests:
+To drains the queue and print it:
 
 ```bash
-make test
+python3 scripts/consume.py
 ```
 
-## Configuration
+---
 
-Using [tomlplusplus](https://github.com/marzer/tomlplusplus) library for configuration
-parsing, vendored at `third_party/toml.h`.
+## Make Targets
 
-Config file is located at project root `config.toml`, read once at startup and validated,
-so a bad value stops the processor before any record moves.
+| Target | What it does |
+| --- | --- |
+| `make build` | builds the processor into `build/main` |
+| `make run` | builds and runs the processor |
+| `make test` | builds and runs the unit tests |
+| `make gen` | runs the python generator in the configured mode |
+| `make debug` | builds with `-g -O0` and the address/undefined sanitizers |
+| `make release` | builds with `-O2 -DNDEBUG` |
+| `make clean` | removes `build/` |
 
-```toml
-[log]
-level = "info"          # debug, info, warn, error, none
+---
 
-[source]
-mode = "file"           # file or rabbit
-format = "csv"          # csv is the only supported format
+## Docker
 
-[source.csv]
-separator = "|"         # one character separating the record fields
+Redis and RabbitMQ come from `docker-compose.yml`, their data on named volumes.
 
-[source.file]
-readers     = 4
-ready_dir   = "records/ready/"
-process_dir = "records/.processing"
-done_dir    = "records/done"
-fail_dir    = "records/failed"
-
-[source.rabbit]
-url       = "amqp://guest:guest@localhost/"
-queue     = "cdr"
-consumers = 4
-
-[redis]
-host       = "127.0.0.1"
-port       = 6379
-timeout_ms = 1000       # connect and command timeout
-
-[generator]
-rotate_seconds = 600    # seconds per .cdr file
-gen_interval = 0.001    # seconds between generated records
-```
-
-Batch size is not configurable, it is `kBatchSize` in `inc/constants.hpp`.
+| Command | What it does |
+| --- | --- |
+| `docker compose up -d` | starts both |
+| `docker compose up -d redis` | starts redis alone |
+| `docker compose ps` | shows both, wait until healthy |
+| `docker compose down` | stops both, the data stays |
+| `docker compose down -v` | stops both and wipes the volumes |
