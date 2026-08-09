@@ -61,6 +61,10 @@ public:
     } rabbit;
 
     struct {
+        std::string type;
+    } store;
+
+    struct {
         std::string host;
         int port;
         int timeout_ms;

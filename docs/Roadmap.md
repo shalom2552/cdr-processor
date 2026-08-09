@@ -46,7 +46,8 @@ graph, REST query API.
 - [x] `IStore` and `RedisStore` — one connection per thread, pipelined `HINCRBY`
 - [x] `AggregateWriter` — a `Delta` and a `Totals` into the store
 - [x] `Totals` and `RunTotals` — both sides count the same fourteen fields
-- [x] `RedisSink` — fold then write, per thread delta
+- [x] `AggregateSink` — fold then write, per thread delta
+- [x] `StoreFactory` — store type to store
 - [x] Redis host, port and timeout in `config.toml`
 
 ---

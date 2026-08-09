@@ -276,6 +276,16 @@ call, and the commands that were queued on it are lost and reported.
 Cost per increment is the append into the output buffer; the round trip is paid once per
 1024 commands instead of once each.
 
+### Store Factory
+
+`inc/store/store_factory.hpp`, `src/store/store_factory.cpp`.
+
+`StoreFactory` maps a store type to the store that holds the counters. A single shared
+instance registers the stores it knows at construction, one line per backend, and
+`createStore()` builds a fresh one by name, or returns null when the name is not registered;
+`hasStore()` answers without building one. The name comes from `store.type`, so a new
+backend is one `registerStore` call and a class behind `IStore`, with nothing else to touch.
+
 ### Aggregate Writer
 
 `inc/store/aggregate_writer.hpp`, `src/store/aggregate_writer.cpp`.
@@ -305,11 +315,12 @@ with `redis-cli del total:proc`.
 the ingestor's workers call it from several threads at once, so an implementation owns its
 own locking.
 
-### Redis Sink
+### Aggregate Sink
 
-`inc/sink/redis_sink.hpp`, `src/sink/redis_sink.cpp`.
+`inc/sink/aggregate_sink.hpp`, `src/sink/aggregate_sink.cpp`.
 
-Holds an `Aggregator`, a `RedisStore` and an `AggregateWriter` over that store. `consume()`
+Holds an `Aggregator`, the `IStore` it was built with and an `AggregateWriter` over that
+store, so it names no backend and a null store is refused at construction. `consume()`
 folds the batch into a `Delta` and a `Totals`, merges the totals into the run's `RunTotals`,
 then writes both. `snapshot()` hands the run's counters back, records that reached nothing
 included.

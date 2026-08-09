@@ -1,17 +1,26 @@
 #include "config.hpp"
 #include "logger.hpp"
-#include "sink/redis_sink.hpp"
+#include "sink/aggregate_sink.hpp"
+#include "store/store_factory.hpp"
 #include "ingest/ingestor_factory.hpp"
+#include "util/signal_waiter.hpp"
 
-#include <csignal>
+#include <string>
+#include <utility>
 
 using namespace cdrp;
 
-std::atomic<bool> g_stop = false;
-
 void run()
 {
-    RedisSink sink;
+    const SignalWaiter signals;
+
+    auto store = StoreFactory::instance().createStore(cfg.store.type);
+    if (!store) {
+        logError("Main", "no store for type: " + cfg.store.type);
+        return;
+    }
+
+    AggregateSink sink(std::move(store));
     auto ingestor = IngestorFactory::instance().createIngestor(cfg.source.mode, sink);
     if (!ingestor) {
         logError("Main", "no ingestor for mode: " + cfg.source.mode);
@@ -21,9 +30,7 @@ void run()
     if (!ingestor->start()) {
         return;
     }
-    while (!g_stop.load()) {
-        pause(); // wake on SIGINT
-    }
+    logInfo("Main", "stopping on signal " + std::to_string(signals.wait()));
 
     ingestor->stop();
     logInfo("Main", "totals of this run:" + sink.snapshot().format());
@@ -31,7 +38,6 @@ void run()
 
 int main()
 {
-    std::signal(SIGINT, [](int) { g_stop.store(true); logInfo("Main", "stoping..."); });
     logInfo("Main", "starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
     run();
     logInfo("Main", "finished");

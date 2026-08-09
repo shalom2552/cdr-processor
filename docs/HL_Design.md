@@ -119,6 +119,12 @@ consumed can be put side by side.
 is the first one, one hash per key and every increment an `HINCRBY`. Each thread gets its
 own connection and pipeline, so the write path takes no lock.
 
+### Store Factory
+
+`StoreFactory` maps a store type to a store. It registers what it knows at startup and builds
+one by name, or returns nothing when the name is unknown. The name comes from `config.toml`,
+so a second backend is a new class and one line of registration.
+
 ### Aggregate Writer
 
 `AggregateWriter` writes a folded `Delta` into a store: subscribers, operators, and one hash
@@ -131,12 +137,12 @@ written anywhere `IStore` is implemented.
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,
 so a sink handles its own locking.
 
-### Redis Sink
+### Aggregate Sink
 
-`RedisSink` is the first sink: it folds each batch into a `Delta` and writes it to Redis
-through `AggregateWriter`. The fold buffer is per thread and reused, so batches cost no
-allocation. It also counts every batch into the `RunTotals` of the run, logged when the
-run ends.
+`AggregateSink` is the first sink: it folds each batch into a `Delta` and writes it through
+whatever `IStore` it was built with, using `AggregateWriter`. The fold buffer is per thread
+and reused, so batches cost no allocation. It also counts every batch into the `RunTotals` of
+the run, logged when the run ends.
 
 ### Mapped File
 

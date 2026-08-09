@@ -27,7 +27,7 @@ Config::Config()
     logDebug("Config", "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
         + rabbit.queue + ", url " + rabbit.url);
     logDebug("Config", "redis: " + redis.host + ":" + std::to_string(redis.port)
-        + ", timeout " + std::to_string(redis.timeout_ms) + "ms");
+        + ", timeout " + std::to_string(redis.timeout_ms) + "ms, store " + store.type);
     logDebug("Config", "log: " + log.level + " level");
 }
 
@@ -56,6 +56,8 @@ void Config::load(std::string_view path)
     rabbit.consumers = t["source"]["rabbit"]["consumers"].value_or<std::size_t>(4);
     rabbit.url = t["source"]["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
     rabbit.queue = t["source"]["rabbit"]["queue"].value_or<std::string>("cdr");
+
+    store.type = t["store"]["type"].value_or<std::string>("redis");
 
     redis.host = t["redis"]["host"].value_or<std::string>("127.0.0.1");
     redis.port = t["redis"]["port"].value_or<int>(6379);
@@ -101,6 +103,10 @@ void Config::validate()
         unsigned n = std::thread::hardware_concurrency();
         rabbit.consumers = (n == 0) ? 4 : n;
         logInfo("Config", "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
+    }
+
+    if (store.type.empty()) {
+        throw std::runtime_error("Store type not set");
     }
 
     if (redis.host.empty()) {

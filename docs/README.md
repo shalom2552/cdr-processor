@@ -119,13 +119,18 @@ Both sides read `queue`.
 ### Store
 
 ```toml
+[store]
+type = "redis"          # redis is the only supported store
+```
+
+```toml
 [redis]
 host       = "127.0.0.1" # redis server address
 port       = 6379        # redis server port
 timeout_ms = 1000        # connect and command timeout, milliseconds
 ```
 
-Redis is used in both modes.
+Both modes read the same store.
 
 Everything that is not configurable lives in `inc/constants.hpp`.
 

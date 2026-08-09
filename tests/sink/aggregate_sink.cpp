@@ -1,11 +1,13 @@
 #include "doctest.h"
 #include "config.hpp"
 #include "constants.hpp"
-#include "sink/redis_sink.hpp"
+#include "sink/aggregate_sink.hpp"
 #include "store/redis_store.hpp"
 
 #include <hiredis/hiredis.h>
 #include <chrono>
+#include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -116,15 +118,20 @@ long long millisOf(Fn fn)
 
 using namespace cdrp;
 
-TEST_CASE("redis_sink_is_a_sink")
+TEST_CASE("aggregate_sink_is_a_sink")
 {
-    CHECK(std::is_base_of<ISink, RedisSink>::value);
+    CHECK(std::is_base_of<ISink, AggregateSink>::value);
     CHECK(std::has_virtual_destructor<ISink>::value);
 }
 
-TEST_CASE("redis_sink_takes_an_empty_batch")
+TEST_CASE("aggregate_sink_refuses_a_null_store")
 {
-    RedisSink sink;
+    CHECK_THROWS_AS(AggregateSink(nullptr), std::invalid_argument);
+}
+
+TEST_CASE("aggregate_sink_takes_an_empty_batch")
+{
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch;
 
     const long long elapsed = millisOf([&] { sink.consume(batch); });
@@ -132,16 +139,16 @@ TEST_CASE("redis_sink_takes_an_empty_batch")
     CHECK(elapsed < 5000);
 }
 
-TEST_CASE("redis_sink_starts_with_a_total_of_zero")
+TEST_CASE("aggregate_sink_starts_with_a_total_of_zero")
 {
-    const RedisSink sink;
+    const AggregateSink sink(std::make_unique<RedisStore>());
 
     CHECK(sink.snapshot().records == 0);
 }
 
-TEST_CASE("redis_sink_counts_the_records_of_every_batch_it_took")
+TEST_CASE("aggregate_sink_counts_the_records_of_every_batch_it_took")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch(3, makeRecord(UsageType::MOC, 60));
     std::vector<CdrRecord> empty;
 
@@ -154,9 +161,9 @@ TEST_CASE("redis_sink_counts_the_records_of_every_batch_it_took")
     CHECK(sink.snapshot().moc_dur == 360);
 }
 
-TEST_CASE("redis_sink_counts_a_record_that_fell_nowhere")
+TEST_CASE("aggregate_sink_counts_a_record_that_fell_nowhere")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 60) };
     batch[0].subscriberMSISDN = 0;
 
@@ -166,9 +173,9 @@ TEST_CASE("redis_sink_counts_a_record_that_fell_nowhere")
     CHECK(sink.snapshot().moc_cnt == 1);
 }
 
-TEST_CASE("redis_sink_counts_every_thread_into_one_total")
+TEST_CASE("aggregate_sink_counts_every_thread_into_one_total")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<std::thread> threads;
     const std::size_t rounds = 16;
 
@@ -188,9 +195,9 @@ TEST_CASE("redis_sink_counts_every_thread_into_one_total")
     CHECK(sink.snapshot().sms_mo_cnt == 2 * 4 * rounds);
 }
 
-TEST_CASE("redis_sink_takes_a_batch_of_records_without_a_subscriber")
+TEST_CASE("aggregate_sink_takes_a_batch_of_records_without_a_subscriber")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch(4, makeRecord(UsageType::MOC, 60));
     for (CdrRecord& record : batch) {
         record.subscriberMSISDN = 0;
@@ -201,12 +208,12 @@ TEST_CASE("redis_sink_takes_a_batch_of_records_without_a_subscriber")
     CHECK(elapsed < 5000);
 }
 
-TEST_CASE("redis_sink_adds_the_seconds_of_a_call_to_the_subscriber")
+TEST_CASE("aggregate_sink_adds_the_seconds_of_a_call_to_the_subscriber")
 {
     if (!serverUp()) {
         return;
     }
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 60) };
     const long long before = counterOf(kSubKey, std::string(kFieldVoiceOut));
 
@@ -215,12 +222,12 @@ TEST_CASE("redis_sink_adds_the_seconds_of_a_call_to_the_subscriber")
     CHECK(counterOf(kSubKey, std::string(kFieldVoiceOut)) == before + 60);
 }
 
-TEST_CASE("redis_sink_adds_the_operator_counters_of_a_batch")
+TEST_CASE("aggregate_sink_adds_the_operator_counters_of_a_batch")
 {
     if (!serverUp()) {
         return;
     }
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch { makeRecord(UsageType::SMS_MO) };
     const long long before = counterOf(kOpKey, std::string(kFieldSmsOut));
 
@@ -229,12 +236,12 @@ TEST_CASE("redis_sink_adds_the_operator_counters_of_a_batch")
     CHECK(counterOf(kOpKey, std::string(kFieldSmsOut)) == before + 1);
 }
 
-TEST_CASE("redis_sink_adds_a_link_under_both_parties")
+TEST_CASE("aggregate_sink_adds_a_link_under_both_parties")
 {
     if (!serverUp()) {
         return;
     }
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 15) };
     const std::string ownerField = std::to_string(kPeerMsisdn) + std::string(kFieldDurSuffix);
     const std::string peerField = std::to_string(kMsisdn) + std::string(kFieldDurSuffix);
@@ -247,12 +254,12 @@ TEST_CASE("redis_sink_adds_a_link_under_both_parties")
     CHECK(counterOf(kPeerLinkKey, peerField) == peerBefore + 15);
 }
 
-TEST_CASE("redis_sink_adds_a_counter_larger_than_a_32_bit_total")
+TEST_CASE("aggregate_sink_adds_a_counter_larger_than_a_32_bit_total")
 {
     if (!serverUp()) {
         return;
     }
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch { makeRecord(UsageType::D) };
     batch[0].bytesReceived = 8589934592ULL;
     const long long before = counterOf(kSubKey, std::string(kFieldDataRx));
@@ -262,9 +269,9 @@ TEST_CASE("redis_sink_adds_a_counter_larger_than_a_32_bit_total")
     CHECK(counterOf(kSubKey, std::string(kFieldDataRx)) == before + 8589934592LL);
 }
 
-TEST_CASE("redis_sink_adds_every_record_of_a_full_batch")
+TEST_CASE("aggregate_sink_adds_every_record_of_a_full_batch")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch(kBatchSize, makeRecord(UsageType::MOC, 1));
     const long long before
         = serverUp() ? counterOf(kSubKey, std::string(kFieldVoiceOut)) : 0;
@@ -278,9 +285,9 @@ TEST_CASE("redis_sink_adds_every_record_of_a_full_batch")
     }
 }
 
-TEST_CASE("redis_sink_consumes_two_batches_in_a_row")
+TEST_CASE("aggregate_sink_consumes_two_batches_in_a_row")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch { makeRecord(UsageType::SMS_MO) };
     const long long before = serverUp() ? counterOf(kSubKey, std::string(kFieldSmsOut)) : 0;
 
@@ -293,9 +300,9 @@ TEST_CASE("redis_sink_consumes_two_batches_in_a_row")
     }
 }
 
-TEST_CASE("redis_sink_consumes_through_the_sink_interface")
+TEST_CASE("aggregate_sink_consumes_through_the_sink_interface")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     ISink& isink = sink;
     std::vector<CdrRecord> batch { makeRecord(UsageType::MTC, 30) };
     const long long before = serverUp() ? counterOf(kSubKey, std::string(kFieldVoiceIn)) : 0;
@@ -308,9 +315,9 @@ TEST_CASE("redis_sink_consumes_through_the_sink_interface")
     }
 }
 
-TEST_CASE("redis_sink_consumes_from_several_threads_at_once")
+TEST_CASE("aggregate_sink_consumes_from_several_threads_at_once")
 {
-    RedisSink sink;
+    AggregateSink sink(std::make_unique<RedisStore>());
     const long long before = serverUp() ? counterOf(kSubKey, std::string(kFieldNoans)) : 0;
     std::vector<std::thread> threads;
     const std::size_t rounds = 16;

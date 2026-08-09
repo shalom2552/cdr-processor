@@ -16,6 +16,8 @@
 #
 #   format = "csv"    -> reads [source.csv]
 #
+#   type = "redis"    -> reads [redis]
+#
 # A thread count of 0 means one thread per core.
 
 ###################################### LOG #####################################
@@ -66,6 +68,13 @@ readers     = 4                     # number of readers threads, 0 for max
 url       = "amqp://guest:guest@localhost/"
 queue     = "cdr"       # RabbitMQ queue name for cdr messages
 consumers = 4           # number of consumer threads, 0 for max
+
+##################################### STORE ####################################
+#
+# Where the counters are written. redis is the only supported store.
+
+[store]
+type = "redis"          # redis is the only supported store
 
 ##################################### REDIS ####################################
 #
