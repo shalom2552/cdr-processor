@@ -415,8 +415,10 @@ call and sends what comes back as `application/json` under the status it came wi
 that matches no route answers 404 with a JSON body, and a handler that throws is logged and
 answered 500, so a failing query never takes the listener down.
 
-`run()` listens on `query.port` and blocks until `stop()`, which is safe to call from another
-thread. Requests are served by a thread pool of `query.concurrency` threads, one request at a
+`start()` binds `query.port` and serves it on a thread of its own, so it returns as soon as
+the port is taken and false when it is not. `stop()` ends the listener and joins that thread,
+and the destructor calls it, so a gateway that goes out of scope leaves nothing running.
+Requests are served by a thread pool of `query.concurrency` threads, one request at a
 time each, and the store gives every thread its own connection, so nothing is locked between
 handlers. The service reference is held, not copied, and the response body is moved into the
 response, so a query costs its store reads and one JSON buffer.

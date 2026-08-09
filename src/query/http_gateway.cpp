@@ -66,21 +66,37 @@ HttpGateway::HttpGateway(const QueryService& service)
     });
 }
 
-HttpGateway::~HttpGateway() = default;
-
-bool HttpGateway::run()
+HttpGateway::~HttpGateway()
 {
+    stop();
+}
+
+bool HttpGateway::start()
+{
+    if (m_running) {
+        return true;
+    }
+
     logInfo(kComponent, "starting on port " + std::to_string(cfg.query.port));
-    if (!m_server->listen("0.0.0.0", cfg.query.port)) {
+    if (!m_server->bind_to_port("0.0.0.0", cfg.query.port)) {
         logError(kComponent, "could not bind port " + std::to_string(cfg.query.port));
         return false;
     }
+
+    m_listener = std::thread([this] { m_server->listen_after_bind(); });
+    m_running = true;
     return true;
 }
 
 void HttpGateway::stop()
 {
+    if (!m_running) {
+        return;
+    }
+
     m_server->stop();
+    m_listener.join();
+    m_running = false;
 }
 
 } // namespace cdrp

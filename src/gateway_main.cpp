@@ -5,13 +5,10 @@
 #include "query/query_service.hpp"
 #include "util/signal_waiter.hpp"
 
-#include <csignal>
 #include <string>
-#include <thread>
-
-static constexpr std::string_view kComponent = "Gateway";
 
 using namespace cdrp;
+static constexpr std::string_view kComponent = "Gateway";
 
 int main()
 {
@@ -28,19 +25,13 @@ int main()
     QueryService service(*store);
     HttpGateway gateway(service);
 
-    bool listening = false;
-    std::thread server([&gateway, &listening] {
-        listening = gateway.run();
-        if (!listening) {
-            raise(SIGTERM);
-        }
-    });
-
+    if (!gateway.start()) {
+        return 1;
+    }
     logInfo(kComponent, "stopping on signal " + std::to_string(signals.wait()));
 
     gateway.stop();
-    server.join();
 
     logInfo(kComponent, "finished");
-    return listening ? 0 : 1;
+    return 0;
 }

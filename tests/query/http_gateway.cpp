@@ -139,7 +139,7 @@ class Listening {
 public:
     explicit Listening(const QueryService& service)
         : m_gateway(service)
-        , m_thread([this] { m_bound = m_gateway.run(); })
+        , m_bound(m_gateway.start())
     {
     }
 
@@ -147,13 +147,12 @@ public:
     {
         ready();
         m_gateway.stop();
-        m_thread.join();
     }
 
     Listening(const Listening&) = delete;
     Listening& operator=(const Listening&) = delete;
 
-    /* What run() returned, only read after the thread was joined */
+    /* What start() returned */
     bool bound() const
     {
         return m_bound;
@@ -162,7 +161,6 @@ public:
 private:
     HttpGateway m_gateway;
     bool m_bound = false;
-    std::thread m_thread;
 };
 
 /* True when the body holds the text, so a test can name one field of it */
@@ -329,18 +327,16 @@ TEST_CASE("http_gateway_answers_several_connections_at_once")
     }
 }
 
-TEST_CASE("http_gateway_run_returns_true_once_stop_was_called")
+TEST_CASE("http_gateway_start_returns_true_once_the_port_is_bound")
 {
     const FakeStore store = seeded();
     const QueryService service(store);
 
     HttpGateway gateway(service);
-    bool bound = false;
-    std::thread listener([&gateway, &bound] { bound = gateway.run(); });
+    const bool bound = gateway.start();
 
     REQUIRE(ready());
     gateway.stop();
-    listener.join();
 
     CHECK(bound);
 }

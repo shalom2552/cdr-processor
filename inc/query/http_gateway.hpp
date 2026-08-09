@@ -3,6 +3,7 @@
 #include "query/query_service.hpp"
 
 #include <memory>
+#include <thread>
 
 namespace httplib { class Server; }
 
@@ -26,15 +27,18 @@ public:
     HttpGateway(const HttpGateway&) = delete;
     HttpGateway& operator=(const HttpGateway&) = delete;
 
-    /* Listens on query.port, blocking until stop(). False when the listener never started. */
-    bool run();
+    /* Binds query.port and serves it on a thread of its own. False when the port
+       could not be bound; the gateway stays stopped. */
+    bool start();
 
-    /* Stops the listener, so run() returns. Thread-safe. */
+    /* Stops the listener and returns once its thread is joined. */
     void stop();
 
 private:
     const QueryService& m_service;
     std::unique_ptr<httplib::Server> m_server;
+    std::thread m_listener;
+    bool m_running = false;
 };
 
 } // namespace cdrp

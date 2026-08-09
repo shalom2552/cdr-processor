@@ -9,38 +9,37 @@
 #include <utility>
 
 using namespace cdrp;
+static constexpr std::string_view kComponent = "Processor";
 
-void run()
+int main()
 {
+    logInfo(kComponent, "starting: '" + cfg.source.mode + "' mode");
+
     const SignalWaiter signals;
 
     auto store = StoreFactory::instance().createStore(cfg.store.type);
     if (!store) {
-        logError("Main", "no store for type: " + cfg.store.type);
-        return;
+        logError(kComponent, "no store for type: " + cfg.store.type);
+        return 1;
     }
 
     AggregateSink sink(std::move(store));
     auto ingestor = IngestorFactory::instance().createIngestor(cfg.source.mode, sink);
     if (!ingestor) {
-        logError("Main", "no ingestor for mode: " + cfg.source.mode);
-        return;
+        logError(kComponent, "no ingestor for mode: " + cfg.source.mode);
+        return 1;
     }
 
     if (!ingestor->start()) {
-        return;
+        return 1;
     }
-    logInfo("Main", "stopping on signal " + std::to_string(signals.wait()));
+
+    signals.wait();
+    logInfo(kComponent, "stopping...");
 
     ingestor->stop();
-    logInfo("Main", "totals of this run:" + sink.snapshot().format());
-}
-
-int main()
-{
-    logInfo("Main", "starting: '" + cfg.source.mode + "' mode, '" + cfg.source.format + "' format");
-    run();
-    logInfo("Main", "finished");
+    logInfo(kComponent, "totals of this run:" + sink.snapshot().format());
+    logInfo(kComponent, "finished");
     return 0;
 }
 
