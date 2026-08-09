@@ -158,6 +158,13 @@ the run, logged when the run ends.
 out in the order they were added. Names and values are escaped, so query text that came in
 over HTTP cannot break the response.
 
+### Query Service
+
+Turns one query into store reads and a JSON body: a subscriber's usage, an operator's
+traffic, a subscriber's peers, what a pair exchanged, and the path between two. The path is
+searched from both parties at once over the link hashes, bounded in hops and in subscribers
+visited. It knows the aggregate keys and nothing of HTTP, and hands back a status and a body.
+
 ### Mapped File
 
 Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,

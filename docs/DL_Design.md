@@ -379,6 +379,22 @@ backslashes and control characters, so text that came in over HTTP cannot break 
 That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
 parsed and nothing is validated, so a caller that adds the same name twice writes it twice.
 
+## Query Service
+
+`inc/query/query_service.hpp`, `src/query/query_service.cpp`.
+
+Answers the queries out of an `IQueryStore`. `msisdn()` and `op()` read one hash whole and
+rename its fields to the response names, the byte counters divided into KB. `peers()` reads
+the field names of a subscriber's link hash and halves them back into peers by dropping the
+`:dur` and `:sms` suffix. `link()` reads the two fields of one pair. A read that failed is
+answered 503, a key with no fields 404.
+
+`path()` runs a breadth first search from both parties at once, expanding the narrower
+frontier each round so the search stays off the hubs, and joins the two trails at the
+subscriber they share. One store read per subscriber expanded, and the search gives up with
+a 404 after `kMaxHops` rounds or `kMaxVisited` subscribers. Nothing is kept between calls but
+the store reference, so one instance serves every handler thread the store is safe for.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.
