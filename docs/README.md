@@ -6,14 +6,16 @@ over an API.
 
 ## RoadMap
 
-- [x] Phase 0 - Buildable repo skeleton & CI
-- [x] Phase 1 - Core primitives, parser, config
-- [x] Phase 2 - Stream & ingest CDR files
-- [x] Phase 3 - Subscriber, operator & graph aggregation
-- [ ] Phase 4 - REST query gateway API
-- [ ] Phase 5 - MySQL persistence across restarts
-- [ ] Phase 6 - Distributed harvesters & clients
-- [ ] Phase 7 - Profiling, tests & deliverables
+- [x] Phase 0 — Skeleton
+- [x] Phase 1 — Core Infrastructure
+- [x] Phase 2 — Ingest
+- [x] Phase 3 — Aggregation Engine
+- [ ] Phase 4 — Query Gateway
+- [ ] Phase 5 — Persistence
+- [ ] Phase 6 — Distribution & Clients
+- [ ] Phase 7 — Hardening & Deliverables
+
+Details in [Roadmap.md](Roadmap.md).
 
 ---
 
