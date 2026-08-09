@@ -22,6 +22,15 @@ over an API.
 - `pika` and a running RabbitMQ broker, only for the rabbit source
 - a running Redis server, where the aggregated counters are written
 
+`docker-compose.yml` brings up both with their data on named volumes:
+
+```bash
+docker compose up -d          # redis and rabbit
+docker compose up -d redis    # redis alone
+docker compose ps             # wait until both are healthy
+docker compose down -v        # containers and both volumes, comes back empty
+```
+
 The AMQP client (rabbitmq-c) and the Redis client (hiredis) are vendored at
 `third_party/rabbitmq-c` and `third_party/hiredis` and built by the Makefile, so nothing
 needs to be installed for the C++ side.
@@ -84,7 +93,7 @@ parse. The directories are created on the first run.
 Start a broker and install the generator's client:
 
 ```bash
-docker run -d --name rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+docker compose up -d rabbit
 # or, with rabbitmq installed on the host
 sudo systemctl start rabbitmq
 
@@ -125,7 +134,7 @@ http://localhost:15672      # user guest, password guest
 The aggregated counters are written to Redis. Start a server:
 
 ```bash
-docker run -d --name redis -p 6379:6379 redis:7
+docker compose up -d redis
 # or, with redis installed on the host
 sudo systemctl start redis
 ```
@@ -140,6 +149,41 @@ timeout_ms = 1000        # connect and command timeout, milliseconds
 The client (hiredis) is vendored, so only the server has to be running. Each thread opens
 its own connection and pipelines its `HINCRBY` commands, and the timeout covers both the
 connect and every command after it.
+
+The compose service runs with the append-only file on and its data on a named volume, so
+the counters are reloaded when the server comes back. `docker compose down -v` drops them.
+
+## Inspecting
+
+What the processor wrote to Redis:
+
+```bash
+docker exec redis redis-cli hgetall total:proc            # the run totals, all 14 fields
+docker exec redis redis-cli --scan --pattern 'sub:*'      # the subscriber keys
+docker exec redis redis-cli hgetall sub:972500000001      # one subscriber's counters
+docker exec redis redis-cli info keyspace                 # how many keys are there at all
+```
+
+Four kinds of key, each one hash:
+
+| Key | Fields |
+| --- | --- |
+| `sub:<msisdn>` | `voice_out` `voice_in` `data_rx` `data_tx` `sms_out` `sms_in` `noans` `busy` `failed` |
+| `op:<mccmnc>` | `voice_out` `voice_in` `sms_out` `sms_in` |
+| `link:<owner>` | `<peer>:dur` and `<peer>:sms`, one pair per peer |
+| `total:proc` | the fourteen totals fields |
+
+What is sitting in the queue:
+
+```bash
+docker exec rabbit rabbitmqctl list_queues name messages messages_unacknowledged consumers
+docker compose logs -f rabbit                             # broker log
+python3 scripts/consume.py                                # drain and print the messages
+```
+
+`messages_unacknowledged` is what a consumer took but has not acked yet, so it is what
+would be redelivered if the processor died right now. The management UI at
+`http://localhost:15672` (user `guest`, password `guest`) shows the same numbers as a graph.
 
 ## Testing
 
