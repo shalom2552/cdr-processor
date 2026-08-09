@@ -15,20 +15,16 @@ over an API.
 - [ ] Phase 6 — Distribution & Clients
 - [ ] Phase 7 — Hardening & Deliverables
 
-Details in [Roadmap.md](Roadmap.md).
-
 ---
 
 ## Prerequisites
 
 - `g++` with C++17 and `make`
-- `python3.11` or newer for the generator (it reads `config.toml` with `tomllib`)
-- `docker` and `docker compose`, which run the Redis server and the RabbitMQ broker
+- `python3.11` or newer for the generator
+- `docker` and `docker compose`
 
 Every library is vendored under `third_party/`: rabbitmq-c, hiredis, tomlplusplus and
 doctest for the C++ side, pika for the generator. Nothing else to install.
-
----
 
 ## Build
 
@@ -50,18 +46,11 @@ For rabbit mode, also:
 docker compose up -d rabbit
 ```
 
----
-
 ## Testing
 
 ```bash
 make test
 ```
-
-Written with [doctest](https://github.com/onqtam/doctest), vendored at
-`third_party/doctest.h`.
-
----
 
 ## Run
 
@@ -195,7 +184,6 @@ python3 scripts/consume.py
 | `make release` | builds with `-O2 -DNDEBUG` |
 | `make clean` | removes `build/` |
 
----
 
 ## Docker
 
