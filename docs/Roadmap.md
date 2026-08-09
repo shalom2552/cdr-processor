@@ -54,13 +54,13 @@ graph, REST query API.
 
 ## Phase 4 — Query Gateway
 
-- [ ] Embedded HTTP server
-- [ ] `GET /query/msisdn/{msisdn}`
-- [ ] `GET /query/operator/{mccmnc}`
-- [ ] `GET /query/link/{a}/{b}`
-- [ ] `GET /query/path/{a}/{b}` — BFS over the links
-- [ ] JSON errors, correct status codes
-- [ ] `query-concurrency` caps handler threads
+- [x] Embedded HTTP server
+- [x] `GET /query/msisdn/{msisdn}`
+- [x] `GET /query/operator/{mccmnc}`
+- [x] `GET /query/link/{a}/{b}`
+- [x] `GET /query/path/{a}/{b}` — BFS over the links
+- [x] JSON errors, correct status codes
+- [x] `query-concurrency` caps handler threads
 
 ---
 

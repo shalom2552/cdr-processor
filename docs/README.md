@@ -10,7 +10,7 @@ over an API.
 - [x] Phase 1 — Core Infrastructure
 - [x] Phase 2 — Ingest
 - [x] Phase 3 — Aggregation Engine
-- [ ] Phase 4 — Query Gateway
+- [x] Phase 4 — Query Gateway
 - [ ] Phase 5 — Persistence
 - [ ] Phase 6 — Distribution & Clients
 - [ ] Phase 7 — Hardening & Deliverables
