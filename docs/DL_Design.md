@@ -365,6 +365,20 @@ Nothing is locked: the fold reads only the batch, the merge is fourteen relaxed 
 and the store gives each thread its own connection. A batch that did not fully land is
 logged by the writer and dropped.
 
+## Json
+
+`inc/query/json.hpp`, `src/query/json.cpp`.
+
+Builder of a flat JSON object for the query responses. `add()` takes a string, a number or
+a vector of strings and appends the field to one buffer, so the fields come out in the order
+they were added and `str()` only wraps that buffer in braces. `error()` builds the one field
+object the failing queries answer with.
+
+Every name and every string value is written through `quoted()`, which escapes quotes,
+backslashes and control characters, so text that came in over HTTP cannot break the body.
+That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
+parsed and nothing is validated, so a caller that adds the same name twice writes it twice.
+
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.

@@ -152,6 +152,12 @@ whatever `IStore` it was built with, using `AggregateWriter`. The fold buffer is
 and reused, so batches cost no allocation. It also counts every batch into the `RunTotals` of
 the run, logged when the run ends.
 
+### Json
+
+`Json` builds the bodies the query answers are sent as: fields are added one by one and come
+out in the order they were added. Names and values are escaped, so query text that came in
+over HTTP cannot break the response.
+
 ### Mapped File
 
 Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,
