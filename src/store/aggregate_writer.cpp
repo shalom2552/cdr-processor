@@ -83,5 +83,30 @@ bool AggregateWriter::write(const Delta& delta)
     return true;
 }
 
+bool AggregateWriter::write(const Totals& totals)
+{
+    bool ok = true;
+
+    ok = add(kTotalKey, kFieldRecords, totals.records) && ok;
+    ok = add(kTotalKey, kFieldMocCnt, totals.moc_cnt) && ok;
+    ok = add(kTotalKey, kFieldMtcCnt, totals.mtc_cnt) && ok;
+    ok = add(kTotalKey, kFieldSmsMoCnt, totals.sms_mo_cnt) && ok;
+    ok = add(kTotalKey, kFieldSmsMtCnt, totals.sms_mt_cnt) && ok;
+    ok = add(kTotalKey, kFieldDataCnt, totals.data_cnt) && ok;
+    ok = add(kTotalKey, kFieldNoansCnt, totals.noans_cnt) && ok;
+    ok = add(kTotalKey, kFieldBusyCnt, totals.busy_cnt) && ok;
+    ok = add(kTotalKey, kFieldFailedCnt, totals.failed_cnt) && ok;
+    ok = add(kTotalKey, kFieldMocDur, totals.moc_dur) && ok;
+    ok = add(kTotalKey, kFieldMtcDur, totals.mtc_dur) && ok;
+    ok = add(kTotalKey, kFieldDataDur, totals.data_dur) && ok;
+    ok = add(kTotalKey, kFieldDataRx, totals.data_rx) && ok;
+    ok = add(kTotalKey, kFieldDataTx, totals.data_tx) && ok;
+
+    if (!ok) {
+        logWarn("AggregateWriter", "totals of " + std::to_string(totals.records) + " records not fully written");
+    }
+    return ok;
+}
+
 } // namespace cdrp
 

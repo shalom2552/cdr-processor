@@ -13,6 +13,7 @@ from .records import csv_record, random_cdr
 from .sequence import Sequence
 from .settings import SEQ_FILE, Settings
 from .sinks.base import Sink, StopEmitting
+from .totals import Totals
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,16 +37,20 @@ def chosen_mode(args: argparse.Namespace, settings: Settings) -> str:
     return settings.mode
 
 
-def generate(sink: Sink, seq: Sequence, interval: float, sep: str) -> None:
+def generate(sink: Sink, seq: Sequence, interval: float, sep: str, totals: Totals) -> None:
     """Feed records to the sink until the user stops us or the sink says it is done."""
-    emit, nxt = sink.emit, seq.next
+    emit, nxt, count = sink.emit, seq.next, totals.add
     try:
         if interval <= 0:                       # a sleep call per record halves the rate
             while True:
-                emit(csv_record(random_cdr(nxt()), sep))
+                cdr = random_cdr(nxt())
+                emit(csv_record(cdr, sep))
+                count(cdr)                      # after emit, a refused record counts nowhere
         else:
             while True:
-                emit(csv_record(random_cdr(nxt()), sep))
+                cdr = random_cdr(nxt())
+                emit(csv_record(cdr, sep))
+                count(cdr)
                 time.sleep(interval)
     except KeyboardInterrupt:
         status("stop", "stopping...")
@@ -58,18 +63,21 @@ def main() -> None:
     settings = Settings.load()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
+    totals = Totals()
     with Sequence(SEQ_FILE) as seq:
         status("config", f"gen_interval={settings.gen_interval}s  seq={seq.value}")
         started = time.perf_counter()
         try:
             with sinks.build(chosen_mode(args, settings), settings) as sink:
-                generate(sink, seq, settings.gen_interval, settings.separator)
+                generate(sink, seq, settings.gen_interval, settings.separator, totals)
         finally:
             elapsed = time.perf_counter() - started
             if seq.generated:                   # a run that never started says nothing
                 status("stop", f"generated {seq.generated:,} records "
                                f"in {elapsed:.1f}s "
                                f"(~{seq.generated / elapsed:,.0f} records/s)")
+            status("totals", "of this run:" + totals.format())
+            status("stop", "finished")
 
 
 if __name__ == "__main__":

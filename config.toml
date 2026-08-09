@@ -33,7 +33,7 @@ level = "info"          # debug, info, warn, error, none
 # either way, a message body holds the record a file line would have held.
 
 [source]
-mode   = "file"         # mode = "file" or "rabbit"
+mode   = "rabbit"       # mode = "file" or "rabbit"
 format = "csv"          # csv is the only supported format
 
 [source.csv]

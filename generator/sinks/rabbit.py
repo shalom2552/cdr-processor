@@ -1,5 +1,5 @@
-"""Records to a RabbitMQ queue. pika is imported here rather than at module load so the
-other modes keep working on a machine that never installed it."""
+"""Records to a RabbitMQ queue. pika is vendored under third_party and imported here
+rather than at module load, so the other modes never pay for it."""
 
 from __future__ import annotations
 
@@ -16,10 +16,8 @@ def _load_pika() -> ModuleType:
     except ModuleNotFoundError as exc:
         if exc.name != "pika":                  # pika is there but one of its own deps is not
             raise
-        fail("rabbit mode needs the 'pika' package, which is not installed",
-             "pip install pika",
-             "or on Arch: sudo pacman -S python-pika",
-             "or generate to files instead: python3 -m generator -f")
+        fail("the vendored 'pika' package is missing from third_party/",
+             "generate to files instead: python3 -m generator -f")
     return pika
 
 
@@ -42,11 +40,14 @@ class RabbitSink(Sink):
         except (ValueError, IndexError) as exc:  # URLParameters chokes on a malformed url
             fail(f"bad source.rabbit.url in config.toml: {exc}",
                  "expected something like amqp://guest:guest@localhost/")
+        # keeps the messages across a broker restart
+        self._props = pika.BasicProperties(delivery_mode=2)
         ok("ready", "connected, publishing")
 
     def emit(self, record: str) -> None:
         try:
-            self._channel.basic_publish("", self.settings.rabbit_queue, record.encode())
+            self._channel.basic_publish("", self.settings.rabbit_queue, record.encode(),
+                                        properties=self._props)
         except self._pika.exceptions.AMQPError as exc:
             fail(f"lost the broker while publishing: {type(exc).__name__}",
                  *broker_hints(self.settings.rabbit_url))
