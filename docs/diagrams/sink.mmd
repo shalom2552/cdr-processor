@@ -1,0 +1,24 @@
+---
+title: Sink
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0011437531385295172426["ISink"]
+    class C_0011437531385295172426 {
+        <<abstract>>
+        +consume(std::vector&lt;CdrRecord&gt; & batch) void*
+    }
+    class C_0014416660323480142591["AggregateSink"]
+    class C_0014416660323480142591 {
+        +AggregateSink(std::unique_ptr&lt;IStore&gt; store) void
+        +consume(std::vector&lt;CdrRecord&gt; & batch) void
+        +snapshot() [const] Totals
+        -m_aggregator : Aggregator
+        -m_store : std::unique_ptr&lt;IStore&gt;
+        -m_totals : RunTotals
+        -m_writer : AggregateWriter
+    }
+    C_0011437531385295172426 <|-- C_0014416660323480142591 : 
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8

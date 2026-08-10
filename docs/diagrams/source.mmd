@@ -1,0 +1,93 @@
+---
+title: Source
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0010532161306050576947["ICdrSource"]
+    class C_0010532161306050576947 {
+        <<abstract>>
+        +next(std::vector&lt;CdrRecord&gt; & out) Status*
+    }
+    class C_0006310024394149221776["ICdrSource::Status"]
+    class C_0006310024394149221776 {
+        <<enumeration>>
+        OK
+        DONE
+        FAIL
+    }
+    class C_0013134599859822896761["Fileheader"]
+    class C_0013134599859822896761 {
+        +format : std::string
+        +record_count : std::size_t
+    }
+    class C_0016628722800302877088["FileSource"]
+    class C_0016628722800302877088 {
+        +FileSource(const std::string & file_path, const IParser & parser) void
+        -log_summary() void
+        +next(std::vector&lt;CdrRecord&gt; & out) Status
+        -parse_header(const char * data, std::size_t length, Fileheader & header) const char *
+        -m_end : const char *
+        -m_failed : bool
+        -m_header : Fileheader
+        -m_map : MappedFile
+        -m_name : std::string
+        -m_parsed : std::size_t
+        -m_parser : const IParser &
+        -m_pos : const char *
+        -m_rejected : std::size_t
+        -m_started : std::chrono::steady_clock::time_point
+        -m_summed : bool
+    }
+    class C_0009057433231091090197["RabbitConn"]
+    class C_0009057433231091090197 {
+        +ack(uint64_t tag, bool multiple) bool
+        -close() void
+        +consume(Message & out, int timeout_ms) Status
+        +open(const std::string & url, const std::string & queue) bool
+        -kChannel : const amqp_channel_t
+        -m_channel_open : bool
+        -m_conn : amqp_connection_state_t
+    }
+    class C_0011484212647697987719["RabbitConn::Status"]
+    class C_0011484212647697987719 {
+        <<enumeration>>
+        OK
+        TIMEOUT
+        FAIL
+    }
+    class C_0001383762067525064699["RabbitConn::Message"]
+    class C_0001383762067525064699 {
+        +body : std::string
+        +tag : uint64_t
+        +type : std::string
+    }
+    class C_0015504900303477001044["RabbitSource"]
+    class C_0015504900303477001044 {
+        +RabbitSource(RabbitConn & connection) void
+        +last_tag() [const] uint64_t
+        +next(std::vector&lt;CdrRecord&gt; & out) Status
+        +parsed() [const] uint64_t
+        +rejected() [const] uint64_t
+        +stop() void
+        -m_conn : RabbitConn &
+        -m_last_tag : uint64_t
+        -m_parsed : uint64_t
+        -m_parser : std::unique_ptr&lt;IParser&gt;
+        -m_rejected : uint64_t
+        -m_stop : std::atomic&lt;bool&gt;
+    }
+    C_0010532161306050576947 ..> C_0006310024394149221776 : 
+    C_0010532161306050576947 ()-- C_0006310024394149221776 : 
+    C_0016628722800302877088 ..> C_0006310024394149221776 : 
+    C_0016628722800302877088 o-- C_0013134599859822896761 : -m_header
+    C_0010532161306050576947 <|-- C_0016628722800302877088 : 
+    C_0009057433231091090197 ..> C_0001383762067525064699 : 
+    C_0009057433231091090197 ..> C_0011484212647697987719 : 
+    C_0009057433231091090197 ()-- C_0011484212647697987719 : 
+    C_0009057433231091090197 ()-- C_0001383762067525064699 : 
+    C_0015504900303477001044 ..> C_0006310024394149221776 : 
+    C_0015504900303477001044 --> C_0009057433231091090197 : -m_conn
+    C_0010532161306050576947 <|-- C_0015504900303477001044 : 
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8

@@ -1,0 +1,221 @@
+---
+title: CDR Processor — overview
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0005204266784183112504["IIngestor"]
+    class C_0005204266784183112504 {
+        <<abstract>>
+        +start() bool*
+        +stop() void*
+    }
+    class C_0004842097886665373725["CdrRecord"]
+    class C_0004842097886665373725 {
+        +bytesReceived : uint64_t
+        +bytesTransmitted : uint64_t
+        +callTime : std::time_t
+        +duration : uint64_t
+        +secondPartyIMSI : uint64_t
+        +secondPartyMSISDN : uint64_t
+        +sequence : uint64_t
+        +subscriberImei : std::string
+        +subscriberImsi : uint64_t
+        +subscriberMSISDN : uint64_t
+        +usageType : UsageType
+    }
+    class C_0015450104558118286089["IParser"]
+    class C_0015450104558118286089 {
+        <<abstract>>
+        +parse(std::string_view line) [const] std::optional&lt;CdrRecord&gt;*
+    }
+    class C_0011437531385295172426["ISink"]
+    class C_0011437531385295172426 {
+        <<abstract>>
+        +consume(std::vector&lt;CdrRecord&gt; & batch) void*
+    }
+    class C_0015551976288975165073["FileIngestor"]
+    class C_0015551976288975165073 {
+        +FileIngestor(ISink & sink) void
+        -dispose(const std::string & file_path, bool ok) void
+        -feed() void
+        -process(const std::string & file_path) void
+        +start() bool
+        +stop() void
+        -m_feeder : std::thread
+        -m_format : std::string
+        -m_parser : std::unique_ptr&lt;IParser&gt;
+        -m_running : bool
+        -m_sink : ISink &
+        -m_stop : std::atomic&lt;bool&gt;
+        -m_thread_pool : std::unique_ptr&lt;ThreadPool&gt;
+        -m_watcher : DirWatcher
+    }
+    class C_0010532161306050576947["ICdrSource"]
+    class C_0010532161306050576947 {
+        <<abstract>>
+        +next(std::vector&lt;CdrRecord&gt; & out) Status*
+    }
+    class C_0016628722800302877088["FileSource"]
+    class C_0016628722800302877088 {
+        +FileSource(const std::string & file_path, const IParser & parser) void
+        -log_summary() void
+        +next(std::vector&lt;CdrRecord&gt; & out) Status
+        -parse_header(const char * data, std::size_t length, Fileheader & header) const char *
+        -m_end : const char *
+        -m_failed : bool
+        -m_header : Fileheader
+        -m_map : MappedFile
+        -m_name : std::string
+        -m_parsed : std::size_t
+        -m_parser : const IParser &
+        -m_pos : const char *
+        -m_rejected : std::size_t
+        -m_started : std::chrono::steady_clock::time_point
+        -m_summed : bool
+    }
+    class C_0016309531056379409339["RabbitIngestor"]
+    class C_0016309531056379409339 {
+        +RabbitIngestor(ISink & sink) void
+        -consume(std::size_t id) void
+        +start() bool
+        +stop() void
+        -m_conns : std::vector&lt;std::unique_ptr&lt;RabbitConn&gt;&gt;
+        -m_format : std::string
+        -m_running : bool
+        -m_sink : ISink &
+        -m_stop : std::atomic&lt;bool&gt;
+        -m_threads : std::vector&lt;std::thread&gt;
+    }
+    class C_0015504900303477001044["RabbitSource"]
+    class C_0015504900303477001044 {
+        +RabbitSource(RabbitConn & connection) void
+        +last_tag() [const] uint64_t
+        +next(std::vector&lt;CdrRecord&gt; & out) Status
+        +parsed() [const] uint64_t
+        +rejected() [const] uint64_t
+        +stop() void
+        -m_conn : RabbitConn &
+        -m_last_tag : uint64_t
+        -m_parsed : uint64_t
+        -m_parser : std::unique_ptr&lt;IParser&gt;
+        -m_rejected : uint64_t
+        -m_stop : std::atomic&lt;bool&gt;
+    }
+    class C_0015765625140678909184["CsvParser"]
+    class C_0015765625140678909184 {
+        +CsvParser(char separator = '|') void
+        +parse(std::string_view line) [const] std::optional&lt;CdrRecord&gt;
+        -m_sep : char
+    }
+    class C_0008391949454572926139["Delta"]
+    class C_0008391949454572926139 {
+        +links : LinkMap
+        +ops : OpMap
+        +subs : SubMap
+    }
+    class C_0000075638799718834364["Aggregator"]
+    class C_0000075638799718834364 {
+        -addLink(LinkMap & links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms) void$
+        +fold(const std::vector&lt;CdrRecord&gt; & batch, Delta & out) [const] void
+    }
+    class C_0012987976901397680227["IStore"]
+    class C_0012987976901397680227 {
+        <<abstract>>
+        +flush() bool*
+        +increment(std::string_view key, std::string_view field, uint64_t value) bool*
+    }
+    class C_0001003986061494381294["AggregateWriter"]
+    class C_0001003986061494381294 {
+        +AggregateWriter(IStore & store) void
+        -add(std::string_view key, std::string_view field, uint64_t value) bool
+        +write(const Delta & delta) bool
+        +write(const Totals & totals) bool
+        -m_store : IStore &
+    }
+    class C_0009211040578075549081["RedisStore"]
+    class C_0009211040578075549081 {
+        +flush() bool
+        +increment(std::string_view key, std::string_view field, uint64_t value) bool
+    }
+    class C_0014416660323480142591["AggregateSink"]
+    class C_0014416660323480142591 {
+        +AggregateSink(std::unique_ptr&lt;IStore&gt; store) void
+        +consume(std::vector&lt;CdrRecord&gt; & batch) void
+        +snapshot() [const] Totals
+        -m_aggregator : Aggregator
+        -m_store : std::unique_ptr&lt;IStore&gt;
+        -m_totals : RunTotals
+        -m_writer : AggregateWriter
+    }
+    class C_0016825886504236010012["IQueryStore"]
+    class C_0016825886504236010012 {
+        <<abstract>>
+        +hgetall(const std::string_view key, Fields & out) [const] bool*
+        +hkeys(const std::string_view key, std::vector&lt;std::string&gt; & out) [const] bool*
+        +hmget(const std::string_view key, const std::vector&lt;std::string&gt; & field_names, std::vector&lt;std::string&gt; & out) [const] bool*
+    }
+    class C_0007436692389984772457["RedisQuery"]
+    class C_0007436692389984772457 {
+        -command(int argc, const char ** argv, const std::size_t * lens) redisReply *$
+        -element_str(const redisReply * element) std::string$
+        +hgetall(const std::string_view key, Fields & out) [const] bool
+        +hkeys(const std::string_view key, std::vector&lt;std::string&gt; & out) [const] bool
+        +hmget(const std::string_view key, const std::vector&lt;std::string&gt; & field_names, std::vector&lt;std::string&gt; & out) [const] bool
+    }
+    class C_0006341152374390112720["QueryService"]
+    class C_0006341152374390112720 {
+        +QueryService(const IQueryStore & store) void
+        +link(std::string_view first, std::string_view second) [const] Result
+        +msisdn(std::string_view msisdn) [const] Result
+        -neighbours(std::string_view msisdn, std::vector&lt;std::string&gt; & out) [const] bool
+        +op(std::string_view mccmnc) [const] Result
+        +path(std::string_view first, std::string_view second) [const] Result
+        +peers(std::string_view msisdn) [const] Result
+        -walk(const Trail & head, const Trail & tail, const std::string & meet) std::vector&lt;std::string&gt;$
+        -m_store : const IQueryStore &
+    }
+    class C_0013124099472554209867["HttpGateway"]
+    class C_0013124099472554209867 {
+        +HttpGateway(const QueryService & service, int port, std::string host) void
+        +port() [const] int
+        +start() bool
+        +stop() void
+        -m_host : const std::string
+        -m_listener : std::thread
+        -m_port : int
+        -m_running : bool
+        -m_server : std::unique_ptr&lt;httplib::Server&gt;
+        -m_service : const QueryService &
+    }
+    C_0015450104558118286089 ..> C_0004842097886665373725 : 
+    C_0011437531385295172426 ..> C_0004842097886665373725 : 
+    C_0015551976288975165073 --> C_0011437531385295172426 : -m_sink
+    C_0015551976288975165073 o-- C_0015450104558118286089 : -m_parser
+    C_0005204266784183112504 <|-- C_0015551976288975165073 : 
+    C_0010532161306050576947 ..> C_0004842097886665373725 : 
+    C_0016628722800302877088 ..> C_0004842097886665373725 : 
+    C_0016628722800302877088 --> C_0015450104558118286089 : -m_parser
+    C_0010532161306050576947 <|-- C_0016628722800302877088 : 
+    C_0016309531056379409339 --> C_0011437531385295172426 : -m_sink
+    C_0005204266784183112504 <|-- C_0016309531056379409339 : 
+    C_0015504900303477001044 ..> C_0004842097886665373725 : 
+    C_0015504900303477001044 o-- C_0015450104558118286089 : -m_parser
+    C_0010532161306050576947 <|-- C_0015504900303477001044 : 
+    C_0015765625140678909184 ..> C_0004842097886665373725 : 
+    C_0015450104558118286089 <|-- C_0015765625140678909184 : 
+    C_0000075638799718834364 ..> C_0004842097886665373725 : 
+    C_0000075638799718834364 ..> C_0008391949454572926139 : 
+    C_0001003986061494381294 ..> C_0008391949454572926139 : 
+    C_0001003986061494381294 --> C_0012987976901397680227 : -m_store
+    C_0012987976901397680227 <|-- C_0009211040578075549081 : 
+    C_0014416660323480142591 ..> C_0004842097886665373725 : 
+    C_0014416660323480142591 o-- C_0000075638799718834364 : -m_aggregator
+    C_0014416660323480142591 o-- C_0012987976901397680227 : -m_store
+    C_0014416660323480142591 o-- C_0001003986061494381294 : -m_writer
+    C_0011437531385295172426 <|-- C_0014416660323480142591 : 
+    C_0016825886504236010012 <|-- C_0007436692389984772457 : 
+    C_0006341152374390112720 --> C_0016825886504236010012 : -m_store
+    C_0013124099472554209867 --> C_0006341152374390112720 : -m_service
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8

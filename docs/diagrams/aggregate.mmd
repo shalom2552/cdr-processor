@@ -1,0 +1,111 @@
+---
+title: Aggregate
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0010887478950944287678["SubDelta"]
+    class C_0010887478950944287678 {
+        +busy : uint64_t
+        +data_rx : uint64_t
+        +data_tx : uint64_t
+        +failed : uint64_t
+        +noans : uint64_t
+        +sms_in : uint64_t
+        +sms_out : uint64_t
+        +voice_in : uint64_t
+        +voice_out : uint64_t
+    }
+    class C_0017794246012153393637["OpDelta"]
+    class C_0017794246012153393637 {
+        +sms_in : uint64_t
+        +sms_out : uint64_t
+        +voice_in : uint64_t
+        +voice_out : uint64_t
+    }
+    class C_0013961113058360695160["LinkDelta"]
+    class C_0013961113058360695160 {
+        +dur : uint64_t
+        +sms : uint64_t
+    }
+    class C_0006168100238794423074["LinkKey"]
+    class C_0006168100238794423074 {
+        +owner : uint64_t
+        +peer : uint64_t
+    }
+    class C_0006421422352653742808["LinkHash"]
+    class C_0006421422352653742808 {
+        -mix(uint64_t x) uint64_t$
+    }
+    class C_0008391949454572926139["Delta"]
+    class C_0008391949454572926139 {
+        +links : LinkMap
+        +ops : OpMap
+        +subs : SubMap
+    }
+    class C_0000075638799718834364["Aggregator"]
+    class C_0000075638799718834364 {
+        -addLink(LinkMap & links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms) void$
+        +fold(const std::vector&lt;CdrRecord&gt; & batch, Delta & out) [const] void
+    }
+    class C_0009640744578029682106["Totals"]
+    class C_0009640744578029682106 {
+        +add(const CdrRecord & record) void
+        +add(const std::vector&lt;CdrRecord&gt; & batch) void
+        +format() [const] std::string
+        +busy_cnt : uint64_t
+        +data_cnt : uint64_t
+        +data_dur : uint64_t
+        +data_rx : uint64_t
+        +data_tx : uint64_t
+        +failed_cnt : uint64_t
+        +moc_cnt : uint64_t
+        +moc_dur : uint64_t
+        +mtc_cnt : uint64_t
+        +mtc_dur : uint64_t
+        +noans_cnt : uint64_t
+        +records : uint64_t
+        +sms_mo_cnt : uint64_t
+        +sms_mt_cnt : uint64_t
+    }
+    class C_0005203435245187721673["RunTotals"]
+    class C_0005203435245187721673 {
+        +merge(const Totals & totals) void
+        +snapshot() [const] Totals
+        -m_busyCnt : std::atomic&lt;uint64_t&gt;
+        -m_dataCnt : std::atomic&lt;uint64_t&gt;
+        -m_dataDur : std::atomic&lt;uint64_t&gt;
+        -m_dataRx : std::atomic&lt;uint64_t&gt;
+        -m_dataTx : std::atomic&lt;uint64_t&gt;
+        -m_failedCnt : std::atomic&lt;uint64_t&gt;
+        -m_mocCnt : std::atomic&lt;uint64_t&gt;
+        -m_mocDur : std::atomic&lt;uint64_t&gt;
+        -m_mtcCnt : std::atomic&lt;uint64_t&gt;
+        -m_mtcDur : std::atomic&lt;uint64_t&gt;
+        -m_noansCnt : std::atomic&lt;uint64_t&gt;
+        -m_records : std::atomic&lt;uint64_t&gt;
+        -m_smsMoCnt : std::atomic&lt;uint64_t&gt;
+        -m_smsMtCnt : std::atomic&lt;uint64_t&gt;
+    }
+    class C_0001003986061494381294["AggregateWriter"]
+    class C_0001003986061494381294 {
+        +AggregateWriter(IStore & store) void
+        -add(std::string_view key, std::string_view field, uint64_t value) bool
+        +write(const Delta & delta) bool
+        +write(const Totals & totals) bool
+        -m_store : IStore &
+    }
+    C_0006421422352653742808 ..> C_0006168100238794423074 : 
+    C_0008391949454572926139 o-- C_0010887478950944287678 : +subs
+    C_0008391949454572926139 o-- C_0017794246012153393637 : +ops
+    C_0008391949454572926139 o-- C_0006168100238794423074 : +links
+    C_0008391949454572926139 o-- C_0013961113058360695160 : +links
+    C_0000075638799718834364 ..> C_0008391949454572926139 : 
+    C_0000075638799718834364 ..> C_0006168100238794423074 : 
+    C_0000075638799718834364 ..> C_0013961113058360695160 : 
+    C_0000075638799718834364 ..> C_0006421422352653742808 : 
+    C_0005203435245187721673 ..> C_0009640744578029682106 : 
+    C_0001003986061494381294 ..> C_0008391949454572926139 : 
+    C_0001003986061494381294 ..> C_0009640744578029682106 : 
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8

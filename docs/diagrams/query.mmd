@@ -1,0 +1,73 @@
+---
+title: Query
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0016825886504236010012["IQueryStore"]
+    class C_0016825886504236010012 {
+        <<abstract>>
+        +hgetall(const std::string_view key, Fields & out) [const] bool*
+        +hkeys(const std::string_view key, std::vector&lt;std::string&gt; & out) [const] bool*
+        +hmget(const std::string_view key, const std::vector&lt;std::string&gt; & field_names, std::vector&lt;std::string&gt; & out) [const] bool*
+    }
+    class C_0000446428521560048476["QueryFactory"]
+    class C_0000446428521560048476 {
+        -QueryFactory() void
+        +createQuery(const std::string & name) [const] std::unique_ptr&lt;IQueryStore&gt;
+        +hasQuery(const std::string & name) [const] bool
+        +instance() QueryFactory &$
+        +registerQuery(const std::string & name, Creator creator) void
+        -m_queries : std::unordered_map&lt;std::string,Creator&gt;
+    }
+    class C_0007436692389984772457["RedisQuery"]
+    class C_0007436692389984772457 {
+        -command(int argc, const char ** argv, const std::size_t * lens) redisReply *$
+        -element_str(const redisReply * element) std::string$
+        +hgetall(const std::string_view key, Fields & out) [const] bool
+        +hkeys(const std::string_view key, std::vector&lt;std::string&gt; & out) [const] bool
+        +hmget(const std::string_view key, const std::vector&lt;std::string&gt; & field_names, std::vector&lt;std::string&gt; & out) [const] bool
+    }
+    class C_0006341152374390112720["QueryService"]
+    class C_0006341152374390112720 {
+        +QueryService(const IQueryStore & store) void
+        +link(std::string_view first, std::string_view second) [const] Result
+        +msisdn(std::string_view msisdn) [const] Result
+        -neighbours(std::string_view msisdn, std::vector&lt;std::string&gt; & out) [const] bool
+        +op(std::string_view mccmnc) [const] Result
+        +path(std::string_view first, std::string_view second) [const] Result
+        +peers(std::string_view msisdn) [const] Result
+        -walk(const Trail & head, const Trail & tail, const std::string & meet) std::vector&lt;std::string&gt;$
+        -m_store : const IQueryStore &
+    }
+    class C_0015225834146114611262["QueryService::Result"]
+    class C_0015225834146114611262 {
+        +body : std::string
+        +status : int
+    }
+    class C_0000867282091731240055["::httplib::Server"]
+    class C_0000867282091731240055 {
+    }
+    class C_0013124099472554209867["HttpGateway"]
+    class C_0013124099472554209867 {
+        +HttpGateway(const QueryService & service, int port, std::string host) void
+        +port() [const] int
+        +start() bool
+        +stop() void
+        -m_host : const std::string
+        -m_listener : std::thread
+        -m_port : int
+        -m_running : bool
+        -m_server : std::unique_ptr&lt;httplib::Server&gt;
+        -m_service : const QueryService &
+    }
+    C_0000446428521560048476 ..> C_0016825886504236010012 : 
+    C_0000446428521560048476 ..> C_0016825886504236010012 : -m_queries
+    C_0016825886504236010012 <|-- C_0007436692389984772457 : 
+    C_0006341152374390112720 ..> C_0015225834146114611262 : 
+    C_0006341152374390112720 --> C_0016825886504236010012 : -m_store
+    C_0006341152374390112720 ()-- C_0015225834146114611262 : 
+    C_0013124099472554209867 --> C_0006341152374390112720 : -m_service
+    C_0013124099472554209867 o-- C_0000867282091731240055 : -m_server
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8

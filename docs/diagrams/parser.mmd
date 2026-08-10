@@ -1,0 +1,31 @@
+---
+title: Parser
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0015450104558118286089["IParser"]
+    class C_0015450104558118286089 {
+        <<abstract>>
+        +parse(std::string_view line) [const] std::optional&lt;CdrRecord&gt;*
+    }
+    class C_0008561421345160373195["ParserFactory"]
+    class C_0008561421345160373195 {
+        -ParserFactory() void
+        +createParser(const std::string & name) [const] std::unique_ptr&lt;IParser&gt;
+        +hasParser(const std::string & name) [const] bool
+        +instance() ParserFactory &$
+        +registerParser(const std::string & name, Creator creator) void
+        -m_parsers : std::unordered_map&lt;std::string,Creator&gt;
+    }
+    class C_0015765625140678909184["CsvParser"]
+    class C_0015765625140678909184 {
+        +CsvParser(char separator = '|') void
+        +parse(std::string_view line) [const] std::optional&lt;CdrRecord&gt;
+        -m_sep : char
+    }
+    C_0008561421345160373195 ..> C_0015450104558118286089 : 
+    C_0008561421345160373195 ..> C_0015450104558118286089 : -m_parsers
+    C_0015450104558118286089 <|-- C_0015765625140678909184 : 
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8
