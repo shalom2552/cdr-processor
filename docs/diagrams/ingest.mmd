@@ -9,6 +9,15 @@ classDiagram
         +start() bool*
         +stop() void*
     }
+    class C_0014691924432592965580["IngestorFactory"]
+    class C_0014691924432592965580 {
+        -IngestorFactory() void
+        +createIngestor(const std::string & name, ISink & sink) [const] std::unique_ptr&lt;IIngestor&gt;
+        +hasIngestor(const std::string & name) [const] bool
+        +instance() IngestorFactory &$
+        +registerIngestor(const std::string & name, Creator creator) void
+        -m_ingestors : std::unordered_map&lt;std::string,Creator&gt;
+    }
     class C_0009913003735889727705["DirWatcher"]
     class C_0009913003735889727705 {
         +DirWatcher(const std::string & source_dir, const std::string & target_dir) void
@@ -42,15 +51,6 @@ classDiagram
         -m_thread_pool : std::unique_ptr&lt;ThreadPool&gt;
         -m_watcher : DirWatcher
     }
-    class C_0014691924432592965580["IngestorFactory"]
-    class C_0014691924432592965580 {
-        -IngestorFactory() void
-        +createIngestor(const std::string & name, ISink & sink) [const] std::unique_ptr&lt;IIngestor&gt;
-        +hasIngestor(const std::string & name) [const] bool
-        +instance() IngestorFactory &$
-        +registerIngestor(const std::string & name, Creator creator) void
-        -m_ingestors : std::unordered_map&lt;std::string,Creator&gt;
-    }
     class C_0016309531056379409339["RabbitIngestor"]
     class C_0016309531056379409339 {
         +RabbitIngestor(ISink & sink) void
@@ -64,10 +64,10 @@ classDiagram
         -m_stop : std::atomic&lt;bool&gt;
         -m_threads : std::vector&lt;std::thread&gt;
     }
-    C_0015551976288975165073 o-- C_0009913003735889727705 : -m_watcher
-    C_0005204266784183112504 <|-- C_0015551976288975165073 : 
     C_0014691924432592965580 ..> C_0005204266784183112504 : 
     C_0014691924432592965580 ..> C_0005204266784183112504 : -m_ingestors
+    C_0015551976288975165073 o-- C_0009913003735889727705 : -m_watcher
+    C_0005204266784183112504 <|-- C_0015551976288975165073 : 
     C_0005204266784183112504 <|-- C_0016309531056379409339 : 
 
 %% Generated with clang-uml, version 0.0.0-unknown
