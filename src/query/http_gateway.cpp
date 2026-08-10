@@ -71,6 +71,10 @@ HttpGateway::HttpGateway(const QueryService& service, const int port, std::strin
         res.status = 500;
         res.set_content(Json::error("internal error"), "application/json");
     });
+
+    m_server->set_logger([](const httplib::Request& req, const httplib::Response& res) {
+        logInfo(kComponent, req.method + " " + req.path + " -> " + std::to_string(res.status));
+    });
 }
 
 HttpGateway::~HttpGateway()

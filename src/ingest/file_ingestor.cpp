@@ -92,6 +92,10 @@ void FileIngestor::feed()
 
 void FileIngestor::process(const std::string& file_path)
 {
+    if (m_stop.load(std::memory_order_relaxed)) {
+        return;
+    }
+
     const std::string source = basename_of(file_path);
     FileSource src(file_path, *m_parser, m_sink.resume_at(source));
 

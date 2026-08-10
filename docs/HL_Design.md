@@ -177,7 +177,8 @@ the gateway names no backend of its own.
 The HTTP front of the query API: five routes over digits, each one a `QueryService` call sent
 back as JSON under the status it came with. It runs a listener and a thread pool of its own,
 one request per thread, so starting it returns at once. Unknown paths and handlers that
-throw are answered as JSON too, so a bad request never takes the listener down.
+throw are answered as JSON too, so a bad request never takes the listener down. Every
+answered request is logged with its status.
 
 ### Mapped File
 

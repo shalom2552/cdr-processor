@@ -435,7 +435,8 @@ The HTTP front of the query API, cpp-httplib behind it. The constructor builds t
 binds five routes, each one a regex over digits that hands its captures to a `QueryService`
 call and sends what comes back as `application/json` under the status it came with. A path
 that matches no route answers 404 with a JSON body, and a handler that throws is logged and
-answered 500, so a failing query never takes the listener down.
+answered 500, so a failing query never takes the listener down. Every request that was
+answered logs its method, path and status, unknown routes included.
 
 `start()` binds `query.port` and serves it on a thread of its own, so it returns as soon as
 the port is taken and false when it is not. `stop()` ends the listener and joins that thread,
