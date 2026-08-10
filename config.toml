@@ -92,8 +92,9 @@ timeout_ms = 1000        # connect and command timeout, milliseconds
 # holds one for as long as its lookup takes.
 
 [query]
-port        = 8080  # http port the query api listens on
-concurrency = 4     # handler threads, 0 for max
+port        = 8080      # http port the query api listens on
+host        = "0.0.0.0" # address the gateway binds
+concurrency = 4         # handler threads, 0 for max
 
 ################################### GENERATOR ##################################
 #

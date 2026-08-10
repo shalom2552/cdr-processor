@@ -1,5 +1,4 @@
 #include "doctest.h"
-#include "config.hpp"
 #include "constants.hpp"
 #include "query/http_gateway.hpp"
 #include "query/query_service.hpp"
@@ -110,22 +109,26 @@ FakeStore seeded()
     return store;
 }
 
-/* A client of the gateway, every wait of it bounded */
-httplib::Client client()
+/* The address the tests bind, a port of their own so a running gateway is untouched */
+const std::string kHost = "127.0.0.1";
+constexpr int kAnyPort = 0;
+
+/* A client of one port, every wait of it bounded */
+httplib::Client client(int port)
 {
-    httplib::Client cli("127.0.0.1", cfg.query.port);
+    httplib::Client cli(kHost, port);
     cli.set_connection_timeout(0, 200 * 1000);
     cli.set_read_timeout(2, 0);
     return cli;
 }
 
 /* True once the port answers, false when it did not within kReadyMillis */
-bool ready()
+bool ready(int port)
 {
     const auto deadline = std::chrono::steady_clock::now()
                         + std::chrono::milliseconds(kReadyMillis);
     while (std::chrono::steady_clock::now() < deadline) {
-        httplib::Client cli = client();
+        httplib::Client cli = client(port);
         if (cli.Get("/ready")) {
             return true;
         }
@@ -134,18 +137,18 @@ bool ready()
     return false;
 }
 
-/* A gateway listening for as long as it is alive, on cfg.query.port */
+/* A gateway listening for as long as it is alive, on the port it was given */
 class Listening {
 public:
-    explicit Listening(const QueryService& service)
-        : m_gateway(service)
+    Listening(const QueryService& service, int port = kAnyPort)
+        : m_gateway(service, port, kHost)
         , m_bound(m_gateway.start())
     {
     }
 
     ~Listening()
     {
-        ready();
+        ready(port());
         m_gateway.stop();
     }
 
@@ -156,6 +159,12 @@ public:
     bool bound() const
     {
         return m_bound;
+    }
+
+    /* The port it bound */
+    int port() const
+    {
+        return m_gateway.port();
     }
 
 private:
@@ -182,9 +191,9 @@ TEST_CASE("http_gateway_answers_a_subscriber_with_the_service_body")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/msisdn/" + kFirst);
 
     REQUIRE(res);
@@ -199,9 +208,9 @@ TEST_CASE("http_gateway_answers_an_operator_with_the_service_body")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/operator/" + kOperator);
 
     REQUIRE(res);
@@ -214,9 +223,9 @@ TEST_CASE("http_gateway_answers_one_msisdn_under_link_with_its_peers")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/link/" + kFirst);
 
     REQUIRE(res);
@@ -230,9 +239,9 @@ TEST_CASE("http_gateway_answers_two_msisdns_under_link_with_what_they_exchanged"
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/link/" + kFirst + "/" + kSecond);
 
     REQUIRE(res);
@@ -245,9 +254,9 @@ TEST_CASE("http_gateway_answers_a_path_between_two_msisdns")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/path/" + kFirst + "/" + kSecond);
 
     REQUIRE(res);
@@ -260,9 +269,9 @@ TEST_CASE("http_gateway_passes_the_service_404_on")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/msisdn/" + kStranger);
 
     REQUIRE(res);
@@ -275,9 +284,9 @@ TEST_CASE("http_gateway_sends_a_json_404_for_a_route_it_does_not_serve")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/nothing/here");
 
     REQUIRE(res);
@@ -290,9 +299,9 @@ TEST_CASE("http_gateway_serves_no_route_for_a_parameter_that_is_not_a_number")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
-    httplib::Client cli = client();
+    httplib::Client cli = client(gateway.port());
     const auto res = cli.Get("/query/msisdn/not_a_number");
 
     REQUIRE(res);
@@ -305,15 +314,15 @@ TEST_CASE("http_gateway_answers_several_connections_at_once")
     const FakeStore store = seeded();
     const QueryService service(store);
     const Listening gateway(service);
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
 
     constexpr int kCallers = 8;
     std::vector<std::thread> callers;
     std::vector<int> statuses(kCallers, 0);
 
     for (int i = 0; i < kCallers; ++i) {
-        callers.emplace_back([i, &statuses] {
-            httplib::Client cli = client();
+        callers.emplace_back([i, &statuses, port = gateway.port()] {
+            httplib::Client cli = client(port);
             const auto res = cli.Get("/query/msisdn/" + kFirst);
             statuses[i] = res ? res->status : 0;
         });
@@ -332,11 +341,25 @@ TEST_CASE("http_gateway_start_returns_true_once_the_port_is_bound")
     const FakeStore store = seeded();
     const QueryService service(store);
 
-    HttpGateway gateway(service);
+    HttpGateway gateway(service, kAnyPort, kHost);
     const bool bound = gateway.start();
 
-    REQUIRE(ready());
+    REQUIRE(ready(gateway.port()));
     gateway.stop();
 
     CHECK(bound);
+    CHECK(gateway.port() != kAnyPort);
+}
+
+TEST_CASE("http_gateway_start_returns_false_when_the_port_is_taken")
+{
+    const FakeStore store = seeded();
+    const QueryService service(store);
+    const Listening first(service);
+    REQUIRE(first.bound());
+    REQUIRE(ready(first.port()));
+
+    const Listening second(service, first.port());
+
+    CHECK_FALSE(second.bound());
 }

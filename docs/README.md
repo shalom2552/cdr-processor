@@ -155,8 +155,9 @@ Both modes read the same store.
 
 ```toml
 [query]
-port        = 8080  # http port the query api listens on
-concurrency = 4     # handler threads, 0 for max
+port        = 8080      # http port the query api listens on
+host        = "0.0.0.0" # address the gateway binds
+concurrency = 4         # handler threads, 0 for max
 ```
 
 A request holds one handler thread for as long as its lookup takes.

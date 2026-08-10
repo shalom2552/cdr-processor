@@ -41,6 +41,5 @@ std::unique_ptr<IStore> StoreFactory::createStore(const std::string& name) const
     }
 }
 
-
 } // namespace cdrp
 

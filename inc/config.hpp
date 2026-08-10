@@ -72,6 +72,7 @@ public:
 
     struct {
         int port;
+        std::string host;
         std::size_t concurrency;
     } query;
 };
