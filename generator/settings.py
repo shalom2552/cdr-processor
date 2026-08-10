@@ -27,6 +27,7 @@ class Settings:
     rabbit_queue: str
     rotate_seconds: int
     gen_interval: float
+    subscribers: int
 
     @classmethod
     def load(cls, path: Path = CONFIG_FILE) -> "Settings":
@@ -53,6 +54,11 @@ class Settings:
                  'set separator = "|" under [source.csv] in config.toml')
 
         gen = cfg.get("generator", {})
+        subscribers = gen.get("subscribers", 100_000)
+        if not isinstance(subscribers, int) or subscribers < 2:
+            fail(f"the subscriber pool must be 2 or more, config asks for '{subscribers}'",
+                 "set subscribers = 100000 under [generator] in config.toml")
+
         return cls(
             mode=source.get("mode", ""),
             fmt=fmt,
@@ -62,6 +68,7 @@ class Settings:
             rabbit_queue=source.get("rabbit", {}).get("queue", "cdr"),
             rotate_seconds=gen.get("rotate_seconds", 600),
             gen_interval=gen.get("gen_interval", 0.001),
+            subscribers=subscribers,
         )
 
     def relative(self, path: Path) -> str:

@@ -163,6 +163,18 @@ TEST_CASE("query_service_answers_a_subscriber_data_in_kilobytes")
     CHECK(holds(result.body, R"("data-out":1)"));
 }
 
+TEST_CASE("query_service_answers_a_subscriber_with_its_unanswered_calls")
+{
+    const FakeStore store = seeded();
+    const QueryService service(store);
+
+    const QueryService::Result result = service.msisdn(kFirst);
+
+    CHECK(holds(result.body, R"("no-answer":1)"));
+    CHECK(holds(result.body, R"("busy":0)"));
+    CHECK(holds(result.body, R"("failed":0)"));
+}
+
 TEST_CASE("query_service_answers_404_for_a_subscriber_never_seen")
 {
     const FakeStore store = seeded();

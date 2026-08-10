@@ -101,10 +101,12 @@ concurrency = 4     # handler threads, 0 for max
 # to print them, write files, or publish them to the queue. Without a flag it takes
 # the mode above, and it always writes records in the format set above.
 #
-# rotate_seconds only applies to files, and gen_interval 0 generates flat out.
+# rotate_seconds only applies to files, and gen_interval 0 generates flat out. Records draw
+# their two parties from a pool of subscribers, so keep it under the records a run generates.
 
 [generator]
-rotate_seconds = 600    # seconds per .cdr file
-gen_interval   = 0.001  # seconds between generated records
+rotate_seconds = 600     # seconds per .cdr file, file mode only
+gen_interval   = 0.000   # seconds between generated records
+subscribers    = 100000  # subscriber pool size, 2 or more
 
 

@@ -9,7 +9,7 @@ import time
 
 from . import sinks
 from .console import status
-from .records import csv_record, random_cdr
+from .records import build_pool, csv_record, random_cdr
 from .sequence import Sequence
 from .settings import SEQ_FILE, Settings
 from .sinks.base import Sink, StopEmitting
@@ -63,9 +63,12 @@ def main() -> None:
     settings = Settings.load()
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
+    build_pool(settings.subscribers)
+
     totals = Totals()
     with Sequence(SEQ_FILE) as seq:
-        status("config", f"gen_interval={settings.gen_interval}s  seq={seq.value}")
+        status("config", f"gen_interval={settings.gen_interval}s  "
+                         f"subscribers={settings.subscribers:,}  seq={seq.value}")
         started = time.perf_counter()
         try:
             with sinks.build(chosen_mode(args, settings), settings) as sink:

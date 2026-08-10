@@ -107,6 +107,7 @@ fail_dir    = "records/failed"      # files that did not parse
 [generator]
 rotate_seconds = 600                # seconds of records per .cdr file
 gen_interval = 0.001                # seconds between records
+subscribers = 100000                # subscriber pool size, 2 or more
 ```
 
 Paths are relative to the project root.

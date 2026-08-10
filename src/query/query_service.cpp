@@ -38,6 +38,9 @@ static constexpr std::pair<std::string_view, std::string_view> kSubFields[] = {
     { kFieldDataRx,   kJsonDataIn   },
     { kFieldSmsOut,   kJsonSmsOut   },
     { kFieldSmsIn,    kJsonSmsIn    },
+    { kFieldNoans,    kJsonNoans    },
+    { kFieldBusy,     kJsonBusy     },
+    { kFieldFailed,   kJsonFailed   },
 };
 
 /* The stored fields an operator is reported with, under the names they go out as */
