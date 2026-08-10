@@ -1,3 +1,15 @@
+<div align="center">
+
+![tests](https://github.com/shalom2552/cdr-processor/actions/workflows/ci.yml/badge.svg)
+![C++](https://img.shields.io/badge/C%2B%2B-17-00599C)
+![Python](https://img.shields.io/badge/Python-3-3776AB)
+![Build](https://img.shields.io/badge/Build-Make-427819)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3-FF6600)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+</div>
+
 # CDR Processor
 
 A distributed C++ system for processing telecom Charging Data Records.
@@ -46,12 +58,6 @@ For rabbit mode, also:
 docker compose up -d rabbit
 ```
 
-## Testing
-
-```bash
-make test
-```
-
 ## Run
 
 Generate records:
@@ -73,6 +79,12 @@ make query
 ```
 
 Stop any of them with `Ctrl-C`.
+
+## Testing
+
+```bash
+make test
+```
 
 ---
 
@@ -240,3 +252,7 @@ Redis and RabbitMQ come from `docker-compose.yml`, their data on named volumes.
 | `docker compose ps` | shows both, wait until healthy |
 | `docker compose down` | stops both, the data stays |
 | `docker compose down -v` | stops both and wipes the volumes |
+
+## License
+
+MIT, see [LICENSE](../LICENSE), and `third_party/` for the vendored ones.
