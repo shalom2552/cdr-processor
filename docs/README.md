@@ -115,11 +115,6 @@ ready_dir   = "records/ready/"      # the generator drops .cdr files here
 process_dir = "records/.processing" # claimed files, one per reader
 done_dir    = "records/done"        # drained files
 fail_dir    = "records/failed"      # files that did not parse
-
-[generator]
-rotate_seconds = 600                # seconds of records per .cdr file
-gen_interval = 0.001                # seconds between records
-subscribers = 100000                # subscriber pool size, 2 or more
 ```
 
 Paths are relative to the project root.
@@ -134,6 +129,17 @@ consumers = 4                               # consumer threads, 0 for one per co
 ```
 
 Both sides read `queue`.
+
+### Generator
+
+```toml
+[generator]
+rotate_seconds = 600    # seconds of records per .cdr file, file mode only
+gen_interval   = 0.001  # seconds between records
+subscribers    = 100000 # subscriber pool size, 2 or more
+```
+
+The generator feeds either mode.
 
 ### Store
 
@@ -253,6 +259,31 @@ Redis and RabbitMQ come from `docker-compose.yml`, their data on named volumes.
 | `docker compose ps` | shows both, wait until healthy |
 | `docker compose down` | stops both, the data stays |
 | `docker compose down -v` | stops both and wipes the volumes |
+
+## Project Structure
+
+```
+inc/            headers, mirrors src/
+src/
+  aggregate/    fold records into counters, write them as hashes
+  ingest/       drive work into records: dir watcher, thread pool, per-mode ingestors
+  parser/       one CDR line into a CdrRecord
+  query/        read side: query store, service, HTTP gateway
+  sink/         far end of ingestion: aggregate, then write
+  source/       yields batches of records from a file or a queue
+  store/        write side: Redis connection and hash writes
+  util/         no app coupling: fs, json, mmap, signals, thread pool
+tests/          mirrors src/, one file per class
+docs/           this file, HL_Design, DL_Design, Roadmap
+generator/      python CDR generator
+scripts/        helper scripts
+third_party/    vendored: rabbitmq-c, hiredis, tomlplusplus, doctest, pika
+records/        input, done and failed directories at runtime
+build/          objects and binaries, not tracked
+```
+
+Two binaries come out of one `src/`: `processor_main.cpp` and `gateway_main.cpp`.
+Everything else links into both.
 
 ## License
 

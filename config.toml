@@ -107,7 +107,7 @@ concurrency = 4         # handler threads, 0 for max
 
 [generator]
 rotate_seconds = 600     # seconds per .cdr file, file mode only
-gen_interval   = 0.000   # seconds between generated records
+gen_interval   = 0.001   # seconds between generated records
 subscribers    = 100000  # subscriber pool size, 2 or more
 
 
