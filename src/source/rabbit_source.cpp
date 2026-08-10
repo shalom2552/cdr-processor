@@ -9,6 +9,8 @@
 
 #include <stdexcept>
 
+constexpr std::string_view kComponent = "RabbitSource";
+
 namespace cdrp {
 
 
@@ -17,11 +19,11 @@ RabbitSource::RabbitSource(RabbitConn& connection)
     , m_parser(ParserFactory::instance().createParser(cfg.source.format))
 {
     if (!m_parser) {
-        logError("RabbitSource", "Failed to create parser");
+        logError(kComponent, "Failed to create parser");
         throw std::runtime_error("Failed to create parser");
     }
 
-    logInfo("RabbitSource", "consuming with parser: " + cfg.source.format);
+    logInfo(kComponent, "consuming with parser: " + cfg.source.format);
 }
 
 RabbitSource::Status RabbitSource::next(std::vector<CdrRecord>& out)
@@ -36,7 +38,7 @@ RabbitSource::Status RabbitSource::next(std::vector<CdrRecord>& out)
             break;
         }
         if (st == RabbitConn::Status::FAIL) {
-            logError("RabbitSource", "connection lost after tag " + std::to_string(m_last_tag));
+            logError(kComponent, "connection lost after tag " + std::to_string(m_last_tag));
             return Status::FAIL;
         }
 
@@ -50,7 +52,7 @@ RabbitSource::Status RabbitSource::next(std::vector<CdrRecord>& out)
         m_last_tag = msg.tag;
     }
 
-    logDebug("RabbitSource", "batch of " + std::to_string(out.size()) + " records");
+    logDebug(kComponent, "batch of " + std::to_string(out.size()) + " records");
 
     return m_stop ? Status::DONE : Status::OK;
 }
@@ -64,7 +66,7 @@ void RabbitSource::stop()
 {
     m_stop = true;
 
-    logInfo("RabbitSource", "stopping: " + std::to_string(m_parsed) + " parsed, "
+    logInfo(kComponent, "stopping: " + std::to_string(m_parsed) + " parsed, "
         + std::to_string(m_rejected) + " rejected");
 }
 

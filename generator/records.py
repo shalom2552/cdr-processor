@@ -54,21 +54,34 @@ def _imei() -> str:
     return f"{_digits(2)}-{_digits(6)}-{_digits(6)}-{_digits(1)}"
 
 
+_pool: tuple[tuple[str, str], ...] = ()     # the subscribers records are drawn from
+
+
+def build_pool(size: int) -> None:
+    """The subscribers every record picks from, each an (imsi, msisdn) pair. A smaller pool
+    means more records per subscriber, so the counters add up and the links form a graph."""
+    global _pool
+    _pool = tuple((_number(15), _number(11 + _below(5))) for _ in range(size))
+
+
 def random_cdr(seq: int) -> Cdr:
     usage = USAGE_TYPES[_below(len(USAGE_TYPES))]
     is_data = usage == DATA_USAGE
+    size = len(_pool)
+    first = _below(size)
+    second = (first + 1 + _below(size - 1)) % size      # never the subscriber itself
     return Cdr(
         seq=seq,
-        imsi=_number(15),
+        imsi=_pool[first][0],
         imei=_imei(),
         usage=usage,
-        msisdn=_number(11 + _below(5)),
+        msisdn=_pool[first][1],
         when=datetime.now() - timedelta(seconds=_below(MAX_AGE_SECONDS)),
         duration=1 + _below(MAX_DURATION) if usage in TIMED_USAGE else 0,
         bytes_rx=_below(MAX_BYTES) if is_data else None,
         bytes_tx=_below(MAX_BYTES) if is_data else None,
-        second_party_imsi="" if is_data else _number(15),
-        second_party_msisdn="" if is_data else _number(11 + _below(5)),
+        second_party_imsi="" if is_data else _pool[second][0],
+        second_party_msisdn="" if is_data else _pool[second][1],
     )
 
 

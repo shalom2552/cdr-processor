@@ -16,6 +16,8 @@
 #
 #   format = "csv"    -> reads [source.csv]
 #
+#   type = "redis"    -> reads [redis]
+#
 # A thread count of 0 means one thread per core.
 
 ###################################### LOG #####################################
@@ -67,6 +69,13 @@ url       = "amqp://guest:guest@localhost/"
 queue     = "cdr"       # RabbitMQ queue name for cdr messages
 consumers = 4           # number of consumer threads, 0 for max
 
+##################################### STORE ####################################
+#
+# Where the counters are written. redis is the only supported store.
+
+[store]
+type = "redis"          # redis is the only supported store
+
 ##################################### REDIS ####################################
 #
 # The redis server the counters are written to. The timeout covers both the connect
@@ -77,16 +86,27 @@ host       = "127.0.0.1" # redis server address
 port       = 6379        # redis server port
 timeout_ms = 1000        # connect and command timeout, milliseconds
 
+##################################### QUERY ####################################
+#
+# The gateway listens here. Concurrency is the number of handler threads, a request
+# holds one for as long as its lookup takes.
+
+[query]
+port        = 8080  # http port the query api listens on
+concurrency = 4     # handler threads, 0 for max
+
 ################################### GENERATOR ##################################
 #
 # The python generator writes synthetic records: `make gen`, with ARGS=-p, -f or -r
 # to print them, write files, or publish them to the queue. Without a flag it takes
 # the mode above, and it always writes records in the format set above.
 #
-# rotate_seconds only applies to files, and gen_interval 0 generates flat out.
+# rotate_seconds only applies to files, and gen_interval 0 generates flat out. Records draw
+# their two parties from a pool of subscribers, so keep it under the records a run generates.
 
 [generator]
-rotate_seconds = 600    # seconds per .cdr file
-gen_interval   = 0.001  # seconds between generated records
+rotate_seconds = 600     # seconds per .cdr file, file mode only
+gen_interval   = 0.000   # seconds between generated records
+subscribers    = 100000  # subscriber pool size, 2 or more
 
 

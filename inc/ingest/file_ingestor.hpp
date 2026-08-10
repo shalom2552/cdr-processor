@@ -2,7 +2,7 @@
 
 #include "ingest/iingestor.hpp"
 #include "parser/iparser.hpp"
-#include "source/dir_watcher.hpp"
+#include "ingest/dir_watcher.hpp"
 #include "sink/isink.hpp"
 #include "util/thread_pool.hpp"
 

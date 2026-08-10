@@ -61,10 +61,19 @@ public:
     } rabbit;
 
     struct {
+        std::string type;
+    } store;
+
+    struct {
         std::string host;
         int port;
         int timeout_ms;
     } redis;
+
+    struct {
+        int port;
+        std::size_t concurrency;
+    } query;
 };
 
 inline const Config& cfg = Config::instance();

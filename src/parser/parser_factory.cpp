@@ -6,6 +6,8 @@
 
 #include <utility>
 
+constexpr std::string_view kComponent = "ParserFactory";
+
 namespace cdrp {
 
 ParserFactory::ParserFactory()
@@ -33,7 +35,7 @@ std::unique_ptr<IParser> ParserFactory::createParser(const std::string& name) co
 {
     auto it = m_parsers.find(name);
     if (it == m_parsers.end()) {
-        logDebug("ParserFactory", "no parser for name: " + name);
+        logDebug(kComponent, "no parser for name: " + name);
         return nullptr;
     } else {
         return it->second();

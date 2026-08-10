@@ -6,6 +6,8 @@
 
 #include <utility>
 
+constexpr std::string_view kComponent = "IngestorFactory";
+
 namespace cdrp {
 
 IngestorFactory::IngestorFactory()
@@ -34,7 +36,7 @@ std::unique_ptr<IIngestor> IngestorFactory::createIngestor(const std::string& na
 {
     auto it = m_ingestors.find(name);
     if (it == m_ingestors.end()) {
-        logDebug("IngestorFactory", "no ingestor for mode: " + name);
+        logDebug(kComponent, "no ingestor for mode: " + name);
         return nullptr;
     } else {
         return it->second(sink);

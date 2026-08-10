@@ -1,5 +1,5 @@
 #include "doctest.h"
-#include "source/dir_watcher.hpp"
+#include "ingest/dir_watcher.hpp"
 
 #include <chrono>
 #include <filesystem>

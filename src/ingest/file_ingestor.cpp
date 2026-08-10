@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+constexpr std::string_view kComponent = "FileIngestor";
+
 namespace cdrp {
 
 FileIngestor::FileIngestor(ISink& sink)
@@ -36,12 +38,12 @@ bool FileIngestor::start()
     }
 
     if (!m_parser) {
-        logError("FileIngestor", "no parser for format: " + m_format);
+        logError(kComponent, "no parser for format: " + m_format);
         return false;
     }
 
     if (!m_watcher.ok()) {
-        logError("FileIngestor", "watcher init failed");
+        logError(kComponent, "watcher init failed");
         return false;
     }
 
@@ -52,7 +54,7 @@ bool FileIngestor::start()
     m_feeder = std::thread(&FileIngestor::feed, this);
     m_running = true;
 
-    logInfo("FileIngestor", "started");
+    logInfo(kComponent, "started");
     return true;
 }
 
@@ -70,7 +72,7 @@ void FileIngestor::stop()
     m_thread_pool.reset();  // drains and join
 
     m_running = false;
-    logInfo("FileIngestor", "stopped");
+    logInfo(kComponent, "stopped");
 }
 
 void FileIngestor::feed()
@@ -79,11 +81,11 @@ void FileIngestor::feed()
     while (!m_stop.load(std::memory_order_relaxed)) {
         if (!m_watcher.next_file(path)) {
             if (!m_stop.load(std::memory_order_relaxed)) {
-                logError("FileIngestor", "watcher stopped, ingestion halted");
+                logError(kComponent, "watcher stopped, ingestion halted");
             }
             break;
         }
-        logDebug("FileIngestor", "claimed " + path);
+        logDebug(kComponent, "claimed " + path);
         m_thread_pool->submit([this, path]() { process(path); });
     }
 }
@@ -107,11 +109,11 @@ void FileIngestor::dispose(const std::string& file_path, bool ok)
     const std::string dest = (ok ? cfg.file.done_dir : cfg.file.fail_dir) + basename_of(file_path);
 
     if (!ok) {
-        logWarn("FileIngestor", "file failed, routed to failed dir: " + basename_of(file_path));
+        logWarn(kComponent, "file failed, routed to failed dir: " + basename_of(file_path));
     }
 
     if (std::rename(file_path.c_str(), dest.c_str()) != 0) {
-        logWarn("FileIngestor", "rename failed: " + file_path + " -> " + dest);
+        logWarn(kComponent, "rename failed: " + file_path + " -> " + dest);
     }
 }
 

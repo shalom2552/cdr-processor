@@ -10,6 +10,8 @@
 #include <cstring>
 #include <string_view>
 
+constexpr std::string_view kComponent = "FileSource";
+
 namespace cdrp {
 
 FileSource::FileSource(const std::string& file_path, const IParser& parser)
@@ -18,26 +20,26 @@ FileSource::FileSource(const std::string& file_path, const IParser& parser)
     , m_name(basename_of(file_path))
 {
     if (!m_map.ok()) {
-        logWarn("FileSource", "skipping unreadable file: " + file_path);
+        logWarn(kComponent, "skipping unreadable file: " + file_path);
         m_failed = true;
         return;
     }
     if (m_map.empty()) {
-        logWarn("FileSource", "skipping empty file: " + file_path);
+        logWarn(kComponent, "skipping empty file: " + file_path);
         m_failed = true;
         return;
     }
 
     const char* data = parse_header(m_map.data(), m_map.size(), m_header);
     if (!data) {
-        logWarn("FileSource", "skipping file without a CDR header: " + file_path);
+        logWarn(kComponent, "skipping file without a CDR header: " + file_path);
         m_failed = true;
         return;
     }
 
     m_pos = data;
     m_end = m_map.data() + m_map.size();
-    logInfo("FileSource", "reading " + m_name + ": " + m_header.format + ", "
+    logInfo(kComponent, "reading " + m_name + ": " + m_header.format + ", "
         + std::to_string(m_header.record_count) + " records");
 }
 
@@ -97,7 +99,7 @@ FileSource::Status FileSource::next(std::vector<CdrRecord>& out)
     }
 
     m_parsed += out.size();
-    logDebug("FileSource", "batch of " + std::to_string(out.size()) + " records");
+    logDebug(kComponent, "batch of " + std::to_string(out.size()) + " records");
     return Status::OK;
 }
 
@@ -110,7 +112,7 @@ void FileSource::log_summary()
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - m_started);
-    logInfo("FileSource", "done " + m_name + ": " + std::to_string(m_parsed) + " parsed, "
+    logInfo(kComponent, "done " + m_name + ": " + std::to_string(m_parsed) + " parsed, "
         + std::to_string(m_rejected) + " rejected, " + std::to_string(elapsed.count()) + "ms");
 }
 

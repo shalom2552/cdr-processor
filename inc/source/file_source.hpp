@@ -38,7 +38,6 @@ public:
      * @param out: the vector filled with the parsed records
      * @return OK while records remain, DONE once the file is drained
      */
-
     Status next(std::vector<CdrRecord>& out) override;
 
 private:

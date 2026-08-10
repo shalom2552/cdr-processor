@@ -46,20 +46,21 @@ graph, REST query API.
 - [x] `IStore` and `RedisStore` — one connection per thread, pipelined `HINCRBY`
 - [x] `AggregateWriter` — a `Delta` and a `Totals` into the store
 - [x] `Totals` and `RunTotals` — both sides count the same fourteen fields
-- [x] `RedisSink` — fold then write, per thread delta
+- [x] `AggregateSink` — fold then write, per thread delta
+- [x] `StoreFactory` — store type to store
 - [x] Redis host, port and timeout in `config.toml`
 
 ---
 
 ## Phase 4 — Query Gateway
 
-- [ ] Embedded HTTP server
-- [ ] `GET /query/msisdn/{msisdn}`
-- [ ] `GET /query/operator/{mccmnc}`
-- [ ] `GET /query/link/{a}/{b}`
-- [ ] `GET /query/path/{a}/{b}` — BFS over the links
-- [ ] JSON errors, correct status codes
-- [ ] `query-concurrency` caps handler threads
+- [x] Embedded HTTP server
+- [x] `GET /query/msisdn/{msisdn}`
+- [x] `GET /query/operator/{mccmnc}`
+- [x] `GET /query/link/{a}/{b}`
+- [x] `GET /query/path/{a}/{b}` — BFS over the links
+- [x] JSON errors, correct status codes
+- [x] `query-concurrency` caps handler threads
 
 ---
 

@@ -9,6 +9,8 @@
 #include <string_view>
 #include <thread>
 
+constexpr std::string_view kComponent = "Config";
+
 namespace cdrp {
 
 Config::Config()
@@ -17,18 +19,20 @@ Config::Config()
     validate();
 
     Logger::instance().setLevel(Logger::levelFromName(log.level));
-    logDebug("Config", "loaded " + std::string(kConfigPath));
-    logDebug("Config", "source: " + source.mode + " mode, " + source.format + " format");
-    logDebug("Config", "csv: " + std::string(1, csv.separator) + " separator");
-    logDebug("Config", "file: " + std::to_string(file.readers) + " readers, ready " + file.ready_dir
+    logDebug(kComponent, "loaded " + std::string(kConfigPath));
+    logDebug(kComponent, "source: " + source.mode + " mode, " + source.format + " format");
+    logDebug(kComponent, "csv: " + std::string(1, csv.separator) + " separator");
+    logDebug(kComponent, "file: " + std::to_string(file.readers) + " readers, ready " + file.ready_dir
         + ", process " + file.process_dir);
-    logDebug("Config", "file: done " + file.done_dir + ", failed " + file.fail_dir
+    logDebug(kComponent, "file: done " + file.done_dir + ", failed " + file.fail_dir
         + ", rotate " + std::to_string(file.rotate_seconds) + "s");
-    logDebug("Config", "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
+    logDebug(kComponent, "rabbit: " + std::to_string(rabbit.consumers) + " consumers, queue "
         + rabbit.queue + ", url " + rabbit.url);
-    logDebug("Config", "redis: " + redis.host + ":" + std::to_string(redis.port)
-        + ", timeout " + std::to_string(redis.timeout_ms) + "ms");
-    logDebug("Config", "log: " + log.level + " level");
+    logDebug(kComponent, "redis: " + redis.host + ":" + std::to_string(redis.port)
+        + ", timeout " + std::to_string(redis.timeout_ms) + "ms, store " + store.type);
+    logDebug(kComponent, "log: " + log.level + " level");
+    logDebug(kComponent, "query: port " + std::to_string(query.port)
+        + ", " + std::to_string(query.concurrency) + " handlers");
 }
 
 void Config::load(std::string_view path)
@@ -37,9 +41,11 @@ void Config::load(std::string_view path)
     try {
         t = toml::parse_file(path);
     } catch (const toml::parse_error& e) {
-        logError("Config", "cannot parse " + std::string(path) + ": " + std::string(e.description()));
+        logError(kComponent, "cannot parse " + std::string(path) + ": " + std::string(e.description()));
         throw std::runtime_error("Configuration not loaded");
     }
+
+    log.level = t["log"]["level"].value_or<std::string>("info");
 
     source.mode = t["source"]["mode"].value_or<std::string>("file");
     source.format = t["source"]["format"].value_or<std::string>("csv");
@@ -57,15 +63,22 @@ void Config::load(std::string_view path)
     rabbit.url = t["source"]["rabbit"]["url"].value_or<std::string>("amqp://guest:guest@localhost/");
     rabbit.queue = t["source"]["rabbit"]["queue"].value_or<std::string>("cdr");
 
+    store.type = t["store"]["type"].value_or<std::string>("redis");
+
     redis.host = t["redis"]["host"].value_or<std::string>("127.0.0.1");
     redis.port = t["redis"]["port"].value_or<int>(6379);
     redis.timeout_ms = t["redis"]["timeout_ms"].value_or<int>(1000);
 
-    log.level = t["log"]["level"].value_or<std::string>("info");
+    query.port = t["query"]["port"].value_or<int>(8080);
+    query.concurrency = t["query"]["concurrency"].value_or<std::size_t>(4);
 }
 
 void Config::validate()
 {
+    if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
+        std::string levels = "info, debug, warn, error";
+        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are" + levels + ".");
+    }
     if (source.mode != "file" && source.mode != "rabbit") {
         throw std::runtime_error("Invalid mode: " + source.mode + "\nValid modes are file and rabbit.");
     }
@@ -88,7 +101,7 @@ void Config::validate()
     if (file.readers == 0) {
         unsigned n = std::thread::hardware_concurrency();
         file.readers = (n == 0) ? 4 : n;
-        logInfo("Config", "setting max file readers: " + std::to_string(file.readers));
+        logInfo(kComponent, "setting max file readers: " + std::to_string(file.readers));
     }
     if (file.rotate_seconds <= 0) {
         throw std::runtime_error("Rotate seconds must be greater than zero");
@@ -100,7 +113,11 @@ void Config::validate()
     if (rabbit.consumers == 0) {
         unsigned n = std::thread::hardware_concurrency();
         rabbit.consumers = (n == 0) ? 4 : n;
-        logInfo("Config", "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
+        logInfo(kComponent, "setting max rabbit consumers: " + std::to_string(rabbit.consumers));
+    }
+
+    if (store.type.empty()) {
+        throw std::runtime_error("Store type not set");
     }
 
     if (redis.host.empty()) {
@@ -113,9 +130,13 @@ void Config::validate()
         throw std::runtime_error("Redis timeout must be greater than zero");
     }
 
-    if (log.level != "info" && log.level != "debug" && log.level != "warn" && log.level != "error") {
-        std::string levels = "info, debug, warn, error";
-        throw std::runtime_error("Invalid log level: " + log.level + "\nValid levels are" + levels + ".");
+    if (query.port <= 0 || query.port > UINT16_MAX) {
+        throw std::runtime_error("Invalid query port: " + std::to_string(query.port));
+    }
+    if (query.concurrency == 0) {
+        unsigned n = std::thread::hardware_concurrency();
+        query.concurrency = (n == 0) ? 4 : n;
+        logInfo(kComponent, "setting max query handlers: " + std::to_string(query.concurrency));
     }
 }
 

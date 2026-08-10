@@ -122,29 +122,6 @@ ends at the next message and every later call says `DONE`. The connection is hel
 reference and outlives the source. `parsed()` and `rejected()` are the running counts, and
 the parser is built once in the constructor, which throws when the format has no parser.
 
-## Dir Watcher
-
-`inc/source/dir_watcher.hpp`, `src/source/dir_watcher.cpp`.
-
-The sender writes a file somewhere else and renames it into the input directory, so a
-file that appears there is already whole. `DirWatcher` puts an inotify watch on that
-directory for `IN_MOVED_TO` and hands out one path at a time through `next_file`, which
-blocks until something arrives. It is not thread safe and expects a thread of its own.
-
-A file is claimed by renaming it from the input directory into the target directory.
-The rename is atomic on the same filesystem, so two processes watching the same input
-cannot both win the same file, and a file being worked on is no longer visible to a
-watcher that starts later. A rename that fails logs a warning and the file is left alone.
-
-Startup sweeps both directories: the target first, whose files are already claimed and
-go straight on the queue, then the input, whose files are claimed as if they had just
-arrived. That is what picks work back up after a crash. A watch that cannot be set up
-leaves the watcher not `ok()`, and `next_file` returns false instead of blocking.
-
-The wait is over `poll` on the inotify fd and an eventfd the watcher owns. `wake()`
-writes to that eventfd, which unblocks a waiting `next_file` and makes it return false;
-it is the one thread-safe entry point, so another thread can end the wait to shut down.
-
 ## Ingestor
 
 `inc/ingest/iingestor.hpp`.
@@ -195,6 +172,29 @@ batch, so acking costs one round trip per batch rather than per message. A read 
 that fails ends that thread and leaves the rest running; its messages are unacked, so the
 broker redelivers them. `stop()` sets the flag, joins every thread and closes the
 connections, and each thread logs what it parsed and what it rejected as it leaves.
+
+### Dir Watcher
+
+`inc/ingest/dir_watcher.hpp`, `src/ingest/dir_watcher.cpp`.
+
+The sender writes a file somewhere else and renames it into the input directory, so a
+file that appears there is already whole. `DirWatcher` puts an inotify watch on that
+directory for `IN_MOVED_TO` and hands out one path at a time through `next_file`, which
+blocks until something arrives. It is not thread safe and expects a thread of its own.
+
+A file is claimed by renaming it from the input directory into the target directory.
+The rename is atomic on the same filesystem, so two processes watching the same input
+cannot both win the same file, and a file being worked on is no longer visible to a
+watcher that starts later. A rename that fails logs a warning and the file is left alone.
+
+Startup sweeps both directories: the target first, whose files are already claimed and
+go straight on the queue, then the input, whose files are claimed as if they had just
+arrived. That is what picks work back up after a crash. A watch that cannot be set up
+leaves the watcher not `ok()`, and `next_file` returns false instead of blocking.
+
+The wait is over `poll` on the inotify fd and an eventfd the watcher owns. `wake()`
+writes to that eventfd, which unblocks a waiting `next_file` and makes it return false;
+it is the one thread-safe entry point, so another thread can end the wait to shut down.
 
 ## Delta
 
@@ -249,36 +249,9 @@ the block as the tail of one log message, a tab then the name padded then the va
 `fetch_add` per non-zero counter, `snapshot()` reads them back. No record touches an
 atomic, and a snapshot taken mid merge can hold part of a batch.
 
-## Store
+## Aggregate Writer
 
-`inc/store/istore.hpp`.
-
-`IStore::increment()` adds a value to one field of one key, `flush()` completes everything
-queued so far. Both are called from several threads at once, so an implementation owns its
-own locking or gives each thread its own state. Nothing about records or aggregates reaches
-this far: it is keys, fields and numbers.
-
-### Redis Store
-
-`inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
-
-One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline. Each thread
-opens its own connection on first use and frees it when the thread ends, so no lock is
-taken on the write path. Host, port and timeout come from `config.toml`, and the timeout
-covers the connect and every command after it.
-
-Commands go out without waiting for their replies. The pipeline drains itself once it holds
-`kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
-command. A reply that carries an error is counted as a failure and logged, so a rejected
-increment is not read as a write. A broken connection is freed and opened again on the next
-call, and the commands that were queued on it are lost and reported.
-
-Cost per increment is the append into the output buffer; the round trip is paid once per
-1024 commands instead of once each.
-
-### Aggregate Writer
-
-`inc/store/aggregate_writer.hpp`, `src/store/aggregate_writer.cpp`.
+`inc/aggregate/aggregate_writer.hpp`, `src/aggregate/aggregate_writer.cpp`.
 
 Turns a folded `Delta` into store calls. Subscribers go to `sub:<msisdn>`, operators to
 `op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur` and `<peer>:sms` as fields, so a
@@ -297,6 +270,52 @@ way round the totals wait for the next batch and the last batch never goes out.
 The hash sums every run, the block logged at shutdown is one run, so a comparison starts
 with `redis-cli del total:proc`.
 
+## Store
+
+`inc/store/istore.hpp`.
+
+`IStore::increment()` adds a value to one field of one key, `flush()` completes everything
+queued so far. Both are called from several threads at once, so an implementation owns its
+own locking or gives each thread its own state. Nothing about records or aggregates reaches
+this far: it is keys, fields and numbers.
+
+### Redis Conn
+
+`inc/store/redis_conn.hpp`, `src/store/redis_conn.cpp`.
+
+One context per thread, opened on first use and freed when the thread ends. `get()` opens
+it, and opens a new one when the old broke; `peek()` returns it without opening; `drop()`
+frees it. Host, port and timeout come from `config.toml`, and the timeout covers the
+connect and every command after it. It knows nothing about pipelines or commands, so a
+read side reuses it as it is.
+
+### Redis Store
+
+`inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
+
+One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline on this
+thread's `RedisConn` context, so no lock is taken on the write path. The pipeline depth is
+the store's own, one counter per thread.
+
+Commands go out without waiting for their replies. The pipeline drains itself once it holds
+`kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
+command. A reply that carries an error is counted as a failure and logged, so a rejected
+increment is not read as a write. A broken connection is dropped and opened again on the
+next call, and the commands that were queued on it are lost and reported.
+
+Cost per increment is the append into the output buffer; the round trip is paid once per
+1024 commands instead of once each.
+
+### Store Factory
+
+`inc/store/store_factory.hpp`, `src/store/store_factory.cpp`.
+
+`StoreFactory` maps a store type to the store that holds the counters. A single shared
+instance registers the stores it knows at construction, one line per backend, and
+`createStore()` builds a fresh one by name, or returns null when the name is not registered;
+`hasStore()` answers without building one. The name comes from `store.type`, so a new
+backend is one `registerStore` call and a class behind `IStore`, with nothing else to touch.
+
 ## Sink
 
 `inc/sink/isink.hpp`.
@@ -305,11 +324,12 @@ with `redis-cli del total:proc`.
 the ingestor's workers call it from several threads at once, so an implementation owns its
 own locking.
 
-### Redis Sink
+### Aggregate Sink
 
-`inc/sink/redis_sink.hpp`, `src/sink/redis_sink.cpp`.
+`inc/sink/aggregate_sink.hpp`, `src/sink/aggregate_sink.cpp`.
 
-Holds an `Aggregator`, a `RedisStore` and an `AggregateWriter` over that store. `consume()`
+Holds an `Aggregator`, the `IStore` it was built with and an `AggregateWriter` over that
+store, so it names no backend and a null store is refused at construction. `consume()`
 folds the batch into a `Delta` and a `Totals`, merges the totals into the run's `RunTotals`,
 then writes both. `snapshot()` hands the run's counters back, records that reached nothing
 included.
@@ -319,6 +339,75 @@ batch and a steady stream allocates nothing. The `Totals` is one per call, on th
 Nothing is locked: the fold reads only the batch, the merge is fourteen relaxed atomic adds,
 and the store gives each thread its own connection. A batch that did not fully land is
 logged by the writer and dropped.
+
+## Query Store
+
+`inc/query/iquery_store.hpp`.
+
+The read side of the same counters. `hgetall()` reads every field of one key, `hkeys()` the
+field names alone, `hmget()` the fields it is named. Each one clears the output first and
+returns false only when the store could not be reached, so a key that does not exist is a
+success with nothing in it. Calls come from several threads at once, and the interface
+carries keys, fields and strings, nothing about records or aggregates.
+
+## Redis Query
+
+`inc/query/redis_query.hpp`, `src/query/redis_query.cpp`.
+
+`HGETALL`, `HKEYS` and `HMGET` over this thread's `RedisConn` context, one round trip per
+call, no lock and no state of its own. Keys and field names go out as lengths and bytes, so
+a `string_view` over a larger buffer is read as it stands. Values come back as strings, and
+an element that is not a string reads as empty.
+
+A broken connection is logged and dropped, so the next call opens a new one, and the read
+returns false. A reply that carries an error is logged and also returns false, so a rejected
+read is never read as an empty key. `hmget()` with no field names asks nothing and succeeds.
+
+Cost per call is one round trip plus one allocation for the reply and one per value kept.
+
+## Query Service
+
+`inc/query/query_service.hpp`, `src/query/query_service.cpp`.
+
+Answers the queries out of an `IQueryStore`. `msisdn()` and `op()` read one hash whole and
+rename its fields to the response names, the byte counters divided into KB. `peers()` reads
+the field names of a subscriber's link hash and halves them back into peers by dropping the
+`:dur` and `:sms` suffix. `link()` reads the two fields of one pair. A read that failed is
+answered 503, a key with no fields 404.
+
+`path()` runs a breadth first search from both parties at once, expanding the narrower
+frontier each round so the search stays off the hubs, and joins the two trails at the
+subscriber they share. One store read per subscriber expanded, and the search gives up with
+a 404 after `kMaxHops` rounds or `kMaxVisited` subscribers. Nothing is kept between calls but
+the store reference, so one instance serves every handler thread the store is safe for.
+
+## Query Factory
+
+`inc/query/query_factory.hpp`, `src/query/query_factory.cpp`.
+
+`QueryFactory` maps a store type to the read side of that store. A single shared instance
+registers what it knows at construction, one line per backend, and `createQuery()` builds a
+fresh one by name, or returns null when the name is not registered; `hasQuery()` answers
+without building one. The name is the same `store.type` the writers use, so both sides of one
+backend are registered together and the gateway names no class of its own.
+
+## Http Gateway
+
+`inc/query/http_gateway.hpp`, `src/query/http_gateway.cpp`.
+
+The HTTP front of the query API, cpp-httplib behind it. The constructor builds the server and
+binds five routes, each one a regex over digits that hands its captures to a `QueryService`
+call and sends what comes back as `application/json` under the status it came with. A path
+that matches no route answers 404 with a JSON body, and a handler that throws is logged and
+answered 500, so a failing query never takes the listener down.
+
+`start()` binds `query.port` and serves it on a thread of its own, so it returns as soon as
+the port is taken and false when it is not. `stop()` ends the listener and joins that thread,
+and the destructor calls it, so a gateway that goes out of scope leaves nothing running.
+Requests are served by a thread pool of `query.concurrency` threads, one request at a
+time each, and the store gives every thread its own connection, so nothing is locked between
+handlers. The service reference is held, not copied, and the response body is moved into the
+response, so a query costs its store reads and one JSON buffer.
 
 ## Config
 
@@ -395,3 +484,17 @@ moves on.
 
 The file descriptor is closed right after the map, since the mapping keeps its own
 reference. Not copyable: two owners would unmap the same pages twice.
+
+## Json
+
+`inc/util/json.hpp`, `src/util/json.cpp`.
+
+Builder of a flat JSON object for the query responses. `add()` takes a string, a number or
+a vector of strings and appends the field to one buffer, so the fields come out in the order
+they were added and `str()` only wraps that buffer in braces. `error()` builds the one field
+object the failing queries answer with.
+
+Every name and every string value is written through `quoted()`, which escapes quotes,
+backslashes and control characters, so text that came in over HTTP cannot break the body.
+That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
+parsed and nothing is validated, so a caller that adds the same name twice writes it twice.

@@ -116,8 +116,22 @@ consumed can be put side by side.
 ### Store
 
 `IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
-is the first one, one hash per key and every increment an `HINCRBY`. Each thread gets its
-own connection and pipeline, so the write path takes no lock.
+is the first one, one hash per key and every increment an `HINCRBY`. `RedisConn` holds the
+connection under it, one per thread, so the write path takes no lock and a reader can share
+it.
+
+### Query Store
+
+`IQueryStore` is the read side of the same counters: every field of a key, the field names
+alone, or the fields it is named. `RedisQuery` is the first one, one Redis read per call over
+the same `RedisConn` the writers use. A key that does not exist reads as empty, and only an
+unreachable or rejecting server reads as a failure.
+
+### Store Factory
+
+`StoreFactory` maps a store type to a store. It registers what it knows at startup and builds
+one by name, or returns nothing when the name is unknown. The name comes from `config.toml`,
+so a second backend is a new class and one line of registration.
 
 ### Aggregate Writer
 
@@ -131,12 +145,38 @@ written anywhere `IStore` is implemented.
 `ISink` is where parsed records land. Workers call `consume()` from several threads at once,
 so a sink handles its own locking.
 
-### Redis Sink
+### Aggregate Sink
 
-`RedisSink` is the first sink: it folds each batch into a `Delta` and writes it to Redis
-through `AggregateWriter`. The fold buffer is per thread and reused, so batches cost no
-allocation. It also counts every batch into the `RunTotals` of the run, logged when the
-run ends.
+`AggregateSink` is the first sink: it folds each batch into a `Delta` and writes it through
+whatever `IStore` it was built with, using `AggregateWriter`. The fold buffer is per thread
+and reused, so batches cost no allocation. It also counts every batch into the `RunTotals` of
+the run, logged when the run ends.
+
+### Json
+
+`Json` builds the bodies the query answers are sent as: fields are added one by one and come
+out in the order they were added. Names and values are escaped, so query text that came in
+over HTTP cannot break the response.
+
+### Query Service
+
+Turns one query into store reads and a JSON body: a subscriber's usage, an operator's
+traffic, a subscriber's peers, what a pair exchanged, and the path between two. The path is
+searched from both parties at once over the link hashes, bounded in hops and in subscribers
+visited. It knows the aggregate keys and nothing of HTTP, and hands back a status and a body.
+
+### Query Factory
+
+`QueryFactory` maps a store type to the read side of that store, the same name the writers
+are registered under. It builds one by name, or returns nothing when the name is unknown, so
+the gateway names no backend of its own.
+
+### Http Gateway
+
+The HTTP front of the query API: five routes over digits, each one a `QueryService` call sent
+back as JSON under the status it came with. It runs a listener and a thread pool of its own,
+one request per thread, so starting it returns at once. Unknown paths and handlers that
+throw are answered as JSON too, so a bad request never takes the listener down.
 
 ### Mapped File
 

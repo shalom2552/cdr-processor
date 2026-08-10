@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+constexpr std::string_view kComponent = "RabbitIngestor";
+
 namespace cdrp {
 
 RabbitIngestor::RabbitIngestor(ISink& sink)
@@ -34,7 +36,7 @@ bool RabbitIngestor::start()
     }
 
     if (!ParserFactory::instance().hasParser(m_format)) {
-        logError("RabbitIngestor", "Unknown format: " + m_format);
+        logError(kComponent, "Unknown format: " + m_format);
         return false;
     }
 
@@ -42,14 +44,14 @@ bool RabbitIngestor::start()
     for (std::size_t i = 0; i < cfg.rabbit.consumers; ++i) {
         auto connection = std::make_unique<RabbitConn>();
         if (!connection->open(cfg.rabbit.url, cfg.rabbit.queue)) {
-            logWarn("RabbitIngestor", "consumer-" + std::to_string(i) + ": connect failed");
+            logWarn(kComponent, "consumer-" + std::to_string(i) + ": connect failed");
             continue;
         }
         m_conns.push_back(std::move(connection));
     }
 
     if (m_conns.empty()) {
-        logError("RabbitIngestor", "no consumer could connect to " + cfg.rabbit.url);
+        logError(kComponent, "no consumer could connect to " + cfg.rabbit.url);
         return false;
     }
 
@@ -60,7 +62,7 @@ bool RabbitIngestor::start()
     }
 
     m_running = true;
-    logInfo("RabbitIngestor", "started with " + std::to_string(m_conns.size()) + " consumers");
+    logInfo(kComponent, "started with " + std::to_string(m_conns.size()) + " consumers");
     return true;
 }
 
@@ -80,7 +82,7 @@ void RabbitIngestor::stop()
     m_conns.clear();
 
     m_running = false;
-    logInfo("RabbitIngestor", "stopped");
+    logInfo(kComponent, "stopped");
 }
 
 void RabbitIngestor::consume(std::size_t id)
@@ -96,24 +98,24 @@ void RabbitIngestor::consume(std::size_t id)
         const auto status = source.next(batch);
 
         if (status == RabbitSource::Status::FAIL) {
-            logWarn("RabbitIngestor", tag + ": read failed, exiting");
+            logWarn(kComponent, tag + ": read failed, exiting");
             break;
         }
         if (batch.empty()) {
             continue;
         }
 
-        logDebug("RabbitIngestor", tag + ": batch of " + std::to_string(batch.size()));
+        logDebug(kComponent, tag + ": batch of " + std::to_string(batch.size()));
         m_sink.consume(batch);
         total += batch.size();
 
         if (!connection.ack(source.last_tag(), true)) {
-            logWarn("RabbitIngestor", tag + ": ack failed, exiting");
+            logWarn(kComponent, tag + ": ack failed, exiting");
             break;
         }
     }
 
-    logInfo("RabbitIngestor", tag + ": " + std::to_string(total) + " records, " + std::to_string(source.rejected()) + " rejected");
+    logInfo(kComponent, tag + ": " + std::to_string(total) + " records, " + std::to_string(source.rejected()) + " rejected");
 }
 
 } // namespace cdrp

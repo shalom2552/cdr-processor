@@ -68,3 +68,18 @@ inline constexpr std::string_view kFieldMtcDur = "mtc_dur";
 inline constexpr std::string_view kFieldDataDur = "data_dur";
 inline constexpr std::size_t kTotalsNameWidth = 12; // values line up past the longest name
 
+// json query
+inline constexpr uint64_t kBytesPerKb = 1024;
+inline constexpr std::size_t kMaxHops = 6;
+inline constexpr std::size_t kMaxVisited = 10'000;
+inline constexpr std::string_view kJsonVoiceOut = "voice-out";
+inline constexpr std::string_view kJsonVoiceIn = "voice-in";
+inline constexpr std::string_view kJsonDataOut = "data-out";
+inline constexpr std::string_view kJsonDataIn = "data-in";
+inline constexpr std::string_view kJsonSmsOut = "sms-out";
+inline constexpr std::string_view kJsonSmsIn = "sms-in";
+inline constexpr std::string_view kJsonNoans = "no-answer";
+inline constexpr std::string_view kJsonBusy = "busy";
+inline constexpr std::string_view kJsonFailed = "failed";
+inline constexpr std::string_view kJsonDuration = "duration";
+inline constexpr std::string_view kJsonSms = "sms";
