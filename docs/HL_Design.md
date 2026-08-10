@@ -255,3 +255,26 @@ The generator generates CDR records to three different destinations:
 3. **rabbitmw (-r, --rabbit)**: sends the records to a RabbitMQ queue
 
 
+### UI Backend
+
+FastAPI, one process under `ui/api`. One endpoint per gateway route, same shapes, under
+`/api`, so the browser stays same origin and the timeouts live in one place. It opens no
+Redis connection: anything the UI needs that the gateway cannot answer becomes a gateway
+route, not a store read in python. It also reads `config.toml` off disk for the config
+screen, and serves the built web app.
+
+### Sampler
+
+A background task in the UI backend. Every `sample_interval` seconds it calls `/query/health`
+and `/query/totals` and appends one row to a SQLite file: the timestamp, the fourteen
+counters, the key count. That file is the only history in the system, so a curve starts when
+the UI starts. Rates are derived at read time, a failed poll writes no row, and rows past
+retention are swept daily.
+
+### Web App
+
+React and TypeScript under `ui/web`, built by Vite. Nine screens off a left rail: dashboard,
+subscriber, rankings, graph, path, operator, config, system, settings. It reads and never
+writes: no counter, no config, no process. Charts and the contact graph are drawn from the
+data itself, in SVG and on a canvas, so the app carries no chart library. Paging, expansion
+and canvas limits are the settings screen's, kept in browser storage.

@@ -77,14 +77,14 @@ graph, REST query API.
 
 ## Phase 6 — Distribution & Clients
 
-- [ ] Harvester — ingest and write, no gateway
-- [ ] Processor — gateway only
-- [ ] Harvesters share one Redis
-- [ ] Source id per harvester, so progress keys never collide
-- [ ] Sequence numbers unique across harvesters
-- [ ] Console client
+- [x] Harvester — ingest and write, no gateway
+- [x] Processor — gateway only
+- [x] Harvesters share one Redis
+- [x] Source id per harvester, so progress keys never collide
+- [x] Sequence numbers unique across harvesters
+- [x] Console client
 - [x] Query API the web UI needs — health, totals, rankings, weighted peers and hops
-- [ ] Web UI over those routes
+- [x] Web UI over those routes
 
 ---
 

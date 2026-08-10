@@ -675,3 +675,102 @@ Every name and every string value is written through `quoted()`, which escapes q
 backslashes and control characters, so text that came in over HTTP cannot break the body.
 That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
 parsed and nothing is validated, so a caller that adds the same name twice writes it twice.
+
+## UI Backend
+
+`ui/api/`. FastAPI, uvicorn, httpx, sqlite3. Modules are imported by plain name, so the
+process runs with `ui/api` on the path: `uvicorn main:app --app-dir ui/api`, or
+`python api/main.py` in the container.
+
+### Settings
+
+`ui/api/settings.py`.
+
+Reads `config.toml` once at startup with `tomllib`: `[ui]` for `gateway_host`, `api_port` and
+`sample_interval`, `[query] port` for the gateway port, `[redis]` for the address the system
+screen reports. The file is the one `CDR_CONFIG` names, else the nearest one walking up from
+the working directory. `[query] host` is a bind address and is deliberately not reused as a
+client address, which is why `[ui] gateway_host` exists. The container runs on the host
+network, so that address is `127.0.0.1` in docker and out of it, and `api_port` is the port
+bound rather than a port mapped. Everything else the backend runs on is in
+`ui/api/constants.py`; everything the user tunes per view is in the browser.
+
+### Gateway Client
+
+`ui/api/gateway.py`.
+
+One `httpx.AsyncClient` against `http://{gateway_host}:{query.port}`. `get()` never raises: a
+connection failure is 502, an overrun timeout is 504, and any status the gateway sent passes
+through with its body. Each call records how that route last answered, which is what the
+system screen lists. The path route is given the longer timeout, the only one that needs it.
+
+### Samples
+
+`ui/api/db.py`.
+
+One SQLite table, `ts` primary key with the key count and the fourteen counters as columns.
+A connection per call: a row every few seconds and a few hundred rows a read is nothing worth
+pooling. `append()` writes what the gateway sent and zero for what it did not. `sweep()`
+drops rows past `RETENTION_DAYS`, `stats()` reports the file for the system screen.
+
+`series()` derives what a chart reads. A metric is one of the fourteen, the key count, a sum
+of counters (`calls`, `messages`, `data-vol`, `failures`), or a ratio (`fail-share`, the three
+averages). A `:rate` suffix asks for `(value - previous) / seconds` between samples instead of
+the counter; a ratio has no rate and is refused. Counters only rise, so a negative delta means
+the store was flushed and clamps to zero: the chart carries on flat rather than spiking, at
+the cost of a reset looking like a quiet minute. The window reads one row before it so the
+first rate has a baseline, and the result is thinned to `MAX_POINTS` by keeping the last point
+of each bucket.
+
+### Sampler
+
+`ui/api/sampler.py`.
+
+An asyncio task started with the app. Each tick calls `/query/health` and `/query/totals`
+together and appends one row. A failed call, or a store that reports down, writes nothing and
+is counted: a gap in the data is the truth about that minute. It keeps the cadence when
+nothing moved rather than skipping the row, so a flat line means idle and only a gap means
+failure. Retention is swept once a day off the same tick. SQLite writes go through
+`asyncio.to_thread`, so the event loop never blocks on the file.
+
+### Config Document
+
+`ui/api/config_file.py`.
+
+Reads `config.toml` twice over: `tomllib` for the values, and a line scan for the shape the
+config screen shows — sections in file order, the comment block written above each one as its
+help, and the trailing comment on each key. Banner rules reset the block, so a section carries
+its own prose and not the file header's. `source.mode`, `source.format` and `store.type` say
+which sections are live; the rest are marked inactive with the setting that turned them off.
+It reports the file, not any running process.
+
+### Routes
+
+`ui/api/main.py`.
+
+Eight proxy endpoints, one per gateway route, adding nothing but the timeout and the status.
+`/api/series` and `/api/metrics` answer off SQLite, `/api/config` off the file, `/api/system`
+folds the gateway health, the store address, the sampler state and the last status of every
+route the UI has called. The built web app is mounted at `/` when `ui/web/dist` exists, so the
+browser is same origin with the API and never sees the gateway.
+
+## Web App
+
+`ui/web/`. React, TypeScript, Vite. Two runtime dependencies, react and react-dom: charts are
+SVG written for this app and the contact graph is a canvas force simulation, so no chart or
+graph library is vendored.
+
+`lib/api.ts` is the only place a URL is written, and it turns a failing response into an
+`ApiError` carrying the status. That status is what the screens render on: 502 the gateway is
+down, 503 the store is, 504 a search timed out, 404 never seen. The three failures never
+render alike. `lib/format.ts` is the only place seconds, bytes, counts and shares are
+formatted. `lib/settings.ts` holds the browser's settings — theme, refresh, default window,
+peer page, board page, expand limit, canvas cap, edge metric — in local storage behind
+`useSyncExternalStore`, and `lib/history.ts` holds recent lookups the same way. Routing is the
+URL hash, so a screen is a link and the static mount needs no fallback.
+
+The graph screen keeps its nodes and edges in a ref and steps a repulsion, spring and centring
+simulation on `requestAnimationFrame`. A node's size is the sum of its **known** edges, the
+ones fetched rather than all it has, which the legend says out loud. An expansion pulls
+`expandLimit` peers heaviest first and says "showing 50 of 812" when there are more; at the
+canvas cap an expansion is refused with the reason instead of freezing.

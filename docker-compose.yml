@@ -43,6 +43,18 @@ services:
       timeout: 5s
       retries: 10
 
+  ui:
+    build: ./ui
+    container_name: cdr-ui
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      UI_HOST: 127.0.0.1
+    volumes:
+      - ./config.toml:/app/config.toml:ro
+      - ui_data:/app/ui/api/data
+
 volumes:
   redis_data:
   rabbit_data:
+  ui_data:

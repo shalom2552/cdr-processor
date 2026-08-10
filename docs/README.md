@@ -24,7 +24,7 @@ over an API.
 - [x] Phase 3 — Aggregation Engine
 - [x] Phase 4 — Query Gateway
 - [x] Phase 5 — Persistence
-- [ ] Phase 6 — Distribution & Clients
+- [x] Phase 6 — Distribution & Clients
 - [ ] Phase 7 — Hardening & Deliverables
 
 ---
@@ -271,6 +271,51 @@ python3 scripts/consume.py
 
 ---
 
+## Client Web UI
+
+A read-only client over the gateway. It writes nothing.
+
+```bash
+make query                  # the gateway, on the host
+docker compose up -d ui     # the ui, in docker
+```
+
+Web UI: <http://127.0.0.1:8000>.
+
+```toml
+[ui]
+gateway_host    = "127.0.0.1" # address the gateway is reached at
+api_port        = 8000        # port the ui backend listens on
+sample_interval = 5           # seconds between polls of the gateway's totals
+```
+
+The container runs on the host network, so `127.0.0.1` holds either way.
+
+| Screen | What it answers |
+| --- | --- |
+| Dashboard | what the store holds, and what is moving right now |
+| Subscriber | one number's counters and its peers |
+| Rankings | the heaviest, off the six boards |
+| Graph | the contact graph around one subscriber, expandable |
+| Path | the subscribers between two numbers |
+| Operator | one MCCMNC, and its share of the store |
+| Config | `config.toml` by section, live sections marked |
+| System | gateway, store, sampler, and every route's last status |
+| Settings | this browser's paging, graph and theme settings |
+
+Every total is lifetime, since the store was created. The rates come from a sampler polling
+the gateway into SQLite, so history starts when the ui does.
+
+Outside docker, with node and the backend bare:
+
+```bash
+scripts/ui.sh               # backend, and vite
+```
+
+Web UI: <http://127.0.0.1:5173>, proxying `/api` to the backend.
+
+---
+
 ## Make Targets
 
 | Target | What it does |
@@ -287,15 +332,16 @@ python3 scripts/consume.py
 
 ## Docker
 
-Redis and RabbitMQ come from `docker-compose.yml`, their data on named volumes.
+Redis, RabbitMQ and the ui come from `docker-compose.yml`, their data on named volumes.
 
 | Command | What it does |
 | --- | --- |
-| `docker compose up -d` | starts both |
+| `docker compose up -d` | starts all three |
 | `docker compose up -d redis` | starts redis alone |
-| `docker compose ps` | shows both, wait until healthy |
-| `docker compose down` | stops both, the data stays |
-| `docker compose down -v` | stops both and wipes the volumes |
+| `docker compose up -d ui` | builds and starts the ui |
+| `docker compose ps` | shows them, wait until healthy |
+| `docker compose down` | stops them, the data stays |
+| `docker compose down -v` | stops them and wipes the volumes |
 
 ## Project Structure
 
@@ -314,6 +360,9 @@ src/
 tests/          mirrors src/, one file per class
 docs/           this file, HL_Design, DL_Design, Roadmap
 generator/      python CDR generator
+ui/
+  api/          FastAPI backend: proxy, sampler, sqlite
+  web/          React web app, built by vite
 scripts/        helper scripts
 third_party/    vendored: rabbitmq-c, hiredis, tomlplusplus, doctest, pika
 records/        input, done and failed directories at runtime
