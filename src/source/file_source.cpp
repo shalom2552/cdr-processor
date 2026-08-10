@@ -14,9 +14,10 @@ constexpr std::string_view kComponent = "FileSource";
 
 namespace cdrp {
 
-FileSource::FileSource(const std::string& file_path, const IParser& parser)
+FileSource::FileSource(const std::string& file_path, const IParser& parser, uint64_t resume_seq)
     : m_map(file_path)
     , m_parser(parser)
+    , m_resume_seq(resume_seq)
     , m_name(basename_of(file_path))
 {
     if (!m_map.ok()) {
@@ -41,6 +42,9 @@ FileSource::FileSource(const std::string& file_path, const IParser& parser)
     m_end = m_map.data() + m_map.size();
     logInfo(kComponent, "reading " + m_name + ": " + m_header.format + ", "
         + std::to_string(m_header.record_count) + " records");
+    if (m_resume_seq != 0) {
+        logInfo(kComponent, "resuming " + m_name + " after sequence " + std::to_string(m_resume_seq));
+    }
 }
 
 const char* FileSource::parse_header(const char* data, std::size_t length, Fileheader& header)
@@ -87,6 +91,9 @@ FileSource::Status FileSource::next(std::vector<CdrRecord>& out)
         m_pos = new_line ? new_line + 1 : m_end;
 
         if (auto record = m_parser.parse(line)) {
+            if (record->sequence <= m_resume_seq) {
+                continue; // already applied
+            }
             out.push_back(*record);
         } else {
             ++m_rejected;

@@ -19,13 +19,20 @@ static void send(httplib::Response& res, QueryService::Result result)
     res.set_content(std::move(result.body), "application/json");
 }
 
-HttpGateway::HttpGateway(const QueryService& service)
+HttpGateway::HttpGateway(const QueryService& service, const int port, std::string host)
     : m_service(service)
+    , m_port(port)
+    , m_host(std::move(host))
     , m_server(std::make_unique<httplib::Server>())
 {
     m_server->new_task_queue = [] {
         return new httplib::ThreadPool(cfg.query.concurrency);
     };
+
+    // set reuse address option, not reuse port
+    m_server->set_socket_options([](const socket_t sock) {
+        httplib::set_socket_opt(sock, SOL_SOCKET, SO_REUSEADDR, 1);
+    });
 
     m_server->Get(R"(/query/msisdn/(\d+))", [this](const httplib::Request& req,
                                                    httplib::Response& res) {
@@ -64,6 +71,10 @@ HttpGateway::HttpGateway(const QueryService& service)
         res.status = 500;
         res.set_content(Json::error("internal error"), "application/json");
     });
+
+    m_server->set_logger([](const httplib::Request& req, const httplib::Response& res) {
+        logInfo(kComponent, req.method + " " + req.path + " -> " + std::to_string(res.status));
+    });
 }
 
 HttpGateway::~HttpGateway()
@@ -77,15 +88,24 @@ bool HttpGateway::start()
         return true;
     }
 
-    logInfo(kComponent, "starting on port " + std::to_string(cfg.query.port));
-    if (!m_server->bind_to_port("0.0.0.0", cfg.query.port)) {
-        logError(kComponent, "could not bind port " + std::to_string(cfg.query.port));
+    const int bound = m_port == 0 ? m_server->bind_to_any_port(m_host)
+                                  : m_server->bind_to_port(m_host, m_port) ? m_port : -1;
+    if (bound <= 0) {
+        logError(kComponent, "could not bind " + m_host + ":" + std::to_string(m_port));
         return false;
     }
+
+    m_port = bound;
+    logInfo(kComponent, "starting on " + m_host + ":" + std::to_string(m_port));
 
     m_listener = std::thread([this] { m_server->listen_after_bind(); });
     m_running = true;
     return true;
+}
+
+int HttpGateway::port() const
+{
+    return m_port;
 }
 
 void HttpGateway::stop()

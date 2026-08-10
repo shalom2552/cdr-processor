@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace cdrp {
@@ -29,8 +30,9 @@ public:
      *
      * @param file_path: the file to read
      * @param parser: the parser applied to every line
+     * @param resume_seq: sequences up to this one are dropped, 0 reads the whole file
      */
-    FileSource(const std::string& file_path, const IParser& parser);
+    FileSource(const std::string& file_path, const IParser& parser, uint64_t resume_seq = 0);
 
     /**
      * Reads the next batch of up to kFileBatchSize records.
@@ -51,6 +53,7 @@ private:
 private:
     MappedFile m_map;
     const IParser& m_parser;
+    uint64_t m_resume_seq;
     Fileheader m_header;
     const char* m_pos = nullptr;
     const char* m_end = nullptr;

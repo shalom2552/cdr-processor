@@ -1,0 +1,181 @@
+# Class diagrams, one per module and one over the pipeline. `scripts/uml.sh` regenerates them.
+
+relative_to: ..
+generate_packages: false
+generate_method_arguments: full
+using_namespace: cdrp
+
+# The vendored libraries are read as system headers, their warnings are not ours.
+remove_compile_flags:
+  - -Ithird_party
+  - -Ithird_party/rabbitmq-c/include
+add_compile_flags:
+  - -isystem
+  - third_party
+  - -isystem
+  - third_party/rabbitmq-c/include
+
+diagrams:
+
+  # The interfaces and the classes behind them, the shape of the pipeline.
+  overview:
+    type: class
+    title: CDR Processor — overview
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      elements:
+        - cdrp::ICdrSource
+        - cdrp::FileSource
+        - cdrp::RabbitSource
+        - cdrp::IParser
+        - cdrp::CsvParser
+        - cdrp::IIngestor
+        - cdrp::FileIngestor
+        - cdrp::RabbitIngestor
+        - cdrp::ISink
+        - cdrp::AggregateSink
+        - cdrp::IStore
+        - cdrp::RedisStore
+        - cdrp::IQueryStore
+        - cdrp::RedisQuery
+        - cdrp::Aggregator
+        - cdrp::AggregateWriter
+        - cdrp::QueryService
+        - cdrp::HttpGateway
+        - cdrp::CdrRecord
+        - cdrp::Delta
+
+  ingest:
+    type: class
+    title: Ingest
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/ingest
+        - src/ingest
+
+  parser:
+    type: class
+    title: Parser
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/parser
+        - src/parser
+
+  source:
+    type: class
+    title: Source
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/source
+        - src/source
+
+  aggregate:
+    type: class
+    title: Aggregate
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/aggregate
+        - src/aggregate
+
+  store:
+    type: class
+    title: Store
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/store
+        - src/store
+
+  sink:
+    type: class
+    title: Sink
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/sink
+        - src/sink
+
+  query:
+    type: class
+    title: Query
+    glob:
+      - src/**/*.cpp
+    exclude:
+      namespaces:
+        - std
+      method_types:
+        - defaulted
+        - deleted
+        - operator
+        - destructor
+    include:
+      paths:
+        - inc/query
+        - src/query

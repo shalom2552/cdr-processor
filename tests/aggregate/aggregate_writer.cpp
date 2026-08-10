@@ -32,6 +32,16 @@ public:
         return flushOk;
     }
 
+    uint64_t resume_at(std::string_view) override
+    {
+        return 0;
+    }
+
+    bool mark(std::string_view, uint64_t) override
+    {
+        return true;
+    }
+
     /* The value written to key and field, or -1 when it was never written */
     long long valueOf(const std::string& key, const std::string& field) const
     {

@@ -104,6 +104,55 @@ CdrRecord makeRecord(UsageType type, uint64_t duration = 0)
     return record;
 }
 
+/* A store that remembers what it was asked for, in the order it was asked */
+class FakeStore : public IStore {
+public:
+    bool increment(std::string_view, std::string_view, uint64_t) override
+    {
+        calls.emplace_back("increment");
+        return true;
+    }
+
+    bool flush() override
+    {
+        calls.emplace_back("flush");
+        return true;
+    }
+
+    uint64_t resume_at(std::string_view source) override
+    {
+        asked.assign(source);
+        return resume;
+    }
+
+    bool mark(std::string_view source, uint64_t seq) override
+    {
+        calls.emplace_back("mark");
+        marked.assign(source);
+        markedSeq = seq;
+        ++marks;
+        return true;
+    }
+
+    /* Index of the first call by that name, or -1 when it was never made */
+    long long indexOf(const std::string& name) const
+    {
+        for (std::size_t i = 0; i < calls.size(); ++i) {
+            if (calls[i] == name) {
+                return static_cast<long long>(i);
+            }
+        }
+        return -1;
+    }
+
+    std::vector<std::string> calls;
+    std::string asked;
+    std::string marked;
+    uint64_t markedSeq = 0;
+    std::size_t marks = 0;
+    uint64_t resume = 0;
+};
+
 /* Milliseconds a call took, so a test can bound a wait */
 template <typename Fn>
 long long millisOf(Fn fn)
@@ -134,7 +183,7 @@ TEST_CASE("aggregate_sink_takes_an_empty_batch")
     AggregateSink sink(std::make_unique<RedisStore>());
     std::vector<CdrRecord> batch;
 
-    const long long elapsed = millisOf([&] { sink.consume(batch); });
+    const long long elapsed = millisOf([&] { sink.consume(batch, ""); });
 
     CHECK(elapsed < 5000);
 }
@@ -152,9 +201,9 @@ TEST_CASE("aggregate_sink_counts_the_records_of_every_batch_it_took")
     std::vector<CdrRecord> batch(3, makeRecord(UsageType::MOC, 60));
     std::vector<CdrRecord> empty;
 
-    sink.consume(batch);
-    sink.consume(empty);
-    sink.consume(batch);
+    sink.consume(batch, "");
+    sink.consume(empty, "");
+    sink.consume(batch, "");
 
     CHECK(sink.snapshot().records == 6);
     CHECK(sink.snapshot().moc_cnt == 6);
@@ -167,7 +216,7 @@ TEST_CASE("aggregate_sink_counts_a_record_that_fell_nowhere")
     std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 60) };
     batch[0].subscriberMSISDN = 0;
 
-    sink.consume(batch);
+    sink.consume(batch, "");
 
     CHECK(sink.snapshot().records == 1);
     CHECK(sink.snapshot().moc_cnt == 1);
@@ -183,7 +232,7 @@ TEST_CASE("aggregate_sink_counts_every_thread_into_one_total")
         threads.emplace_back([&] {
             for (std::size_t round = 0; round < rounds; ++round) {
                 std::vector<CdrRecord> batch(2, makeRecord(UsageType::SMS_MO));
-                sink.consume(batch);
+                sink.consume(batch, "");
             }
         });
     }
@@ -203,7 +252,7 @@ TEST_CASE("aggregate_sink_takes_a_batch_of_records_without_a_subscriber")
         record.subscriberMSISDN = 0;
     }
 
-    const long long elapsed = millisOf([&] { sink.consume(batch); });
+    const long long elapsed = millisOf([&] { sink.consume(batch, ""); });
 
     CHECK(elapsed < 5000);
 }
@@ -217,7 +266,7 @@ TEST_CASE("aggregate_sink_adds_the_seconds_of_a_call_to_the_subscriber")
     std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 60) };
     const long long before = counterOf(kSubKey, std::string(kFieldVoiceOut));
 
-    sink.consume(batch);
+    sink.consume(batch, "");
 
     CHECK(counterOf(kSubKey, std::string(kFieldVoiceOut)) == before + 60);
 }
@@ -231,7 +280,7 @@ TEST_CASE("aggregate_sink_adds_the_operator_counters_of_a_batch")
     std::vector<CdrRecord> batch { makeRecord(UsageType::SMS_MO) };
     const long long before = counterOf(kOpKey, std::string(kFieldSmsOut));
 
-    sink.consume(batch);
+    sink.consume(batch, "");
 
     CHECK(counterOf(kOpKey, std::string(kFieldSmsOut)) == before + 1);
 }
@@ -248,7 +297,7 @@ TEST_CASE("aggregate_sink_adds_a_link_under_both_parties")
     const long long ownerBefore = counterOf(kLinkKey, ownerField);
     const long long peerBefore = counterOf(kPeerLinkKey, peerField);
 
-    sink.consume(batch);
+    sink.consume(batch, "");
 
     CHECK(counterOf(kLinkKey, ownerField) == ownerBefore + 15);
     CHECK(counterOf(kPeerLinkKey, peerField) == peerBefore + 15);
@@ -264,7 +313,7 @@ TEST_CASE("aggregate_sink_adds_a_counter_larger_than_a_32_bit_total")
     batch[0].bytesReceived = 8589934592ULL;
     const long long before = counterOf(kSubKey, std::string(kFieldDataRx));
 
-    sink.consume(batch);
+    sink.consume(batch, "");
 
     CHECK(counterOf(kSubKey, std::string(kFieldDataRx)) == before + 8589934592LL);
 }
@@ -276,7 +325,7 @@ TEST_CASE("aggregate_sink_adds_every_record_of_a_full_batch")
     const long long before
         = serverUp() ? counterOf(kSubKey, std::string(kFieldVoiceOut)) : 0;
 
-    const long long elapsed = millisOf([&] { sink.consume(batch); });
+    const long long elapsed = millisOf([&] { sink.consume(batch, ""); });
 
     CHECK(elapsed < 30000);
     if (serverUp()) {
@@ -291,9 +340,9 @@ TEST_CASE("aggregate_sink_consumes_two_batches_in_a_row")
     std::vector<CdrRecord> batch { makeRecord(UsageType::SMS_MO) };
     const long long before = serverUp() ? counterOf(kSubKey, std::string(kFieldSmsOut)) : 0;
 
-    sink.consume(batch);
+    sink.consume(batch, "");
     std::vector<CdrRecord> second { makeRecord(UsageType::SMS_MO) };
-    sink.consume(second);
+    sink.consume(second, "");
 
     if (serverUp()) {
         CHECK(counterOf(kSubKey, std::string(kFieldSmsOut)) == before + 2);
@@ -307,12 +356,80 @@ TEST_CASE("aggregate_sink_consumes_through_the_sink_interface")
     std::vector<CdrRecord> batch { makeRecord(UsageType::MTC, 30) };
     const long long before = serverUp() ? counterOf(kSubKey, std::string(kFieldVoiceIn)) : 0;
 
-    const long long elapsed = millisOf([&] { isink.consume(batch); });
+    const long long elapsed = millisOf([&] { isink.consume(batch, ""); });
 
     CHECK(elapsed < 5000);
     if (serverUp()) {
         CHECK(counterOf(kSubKey, std::string(kFieldVoiceIn)) == before + 30);
     }
+}
+
+TEST_CASE("aggregate_sink_marks_the_highest_sequence_of_a_named_source")
+{
+    auto store = std::make_unique<FakeStore>();
+    FakeStore& fake = *store;
+    AggregateSink sink(std::move(store));
+    std::vector<CdrRecord> batch(3, makeRecord(UsageType::MOC, 60));
+    batch[1].sequence = 42;
+    batch[2].sequence = 7;
+
+    sink.consume(batch, "run.cdr");
+
+    CHECK(fake.marks == 1);
+    CHECK(fake.marked == "run.cdr");
+    CHECK(fake.markedSeq == 42);
+}
+
+TEST_CASE("aggregate_sink_marks_a_source_before_the_flush_that_commits_it")
+{
+    auto store = std::make_unique<FakeStore>();
+    FakeStore& fake = *store;
+    AggregateSink sink(std::move(store));
+    std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 60) };
+
+    sink.consume(batch, "run.cdr");
+
+    const long long mark = fake.indexOf("mark");
+    const long long flush = fake.indexOf("flush");
+    REQUIRE(mark >= 0);
+    REQUIRE(flush >= 0);
+    CHECK(mark < flush);
+    CHECK(fake.indexOf("increment") < mark);
+}
+
+TEST_CASE("aggregate_sink_marks_nothing_for_a_source_it_was_not_given")
+{
+    auto store = std::make_unique<FakeStore>();
+    FakeStore& fake = *store;
+    AggregateSink sink(std::move(store));
+    std::vector<CdrRecord> batch { makeRecord(UsageType::MOC, 60) };
+
+    sink.consume(batch, "");
+
+    CHECK(fake.marks == 0);
+}
+
+TEST_CASE("aggregate_sink_marks_nothing_for_an_empty_batch")
+{
+    auto store = std::make_unique<FakeStore>();
+    FakeStore& fake = *store;
+    AggregateSink sink(std::move(store));
+    std::vector<CdrRecord> batch;
+
+    sink.consume(batch, "run.cdr");
+
+    CHECK(fake.marks == 0);
+}
+
+TEST_CASE("aggregate_sink_asks_the_store_where_a_source_resumes")
+{
+    auto store = std::make_unique<FakeStore>();
+    FakeStore& fake = *store;
+    fake.resume = 17;
+    AggregateSink sink(std::move(store));
+
+    CHECK(sink.resume_at("run.cdr") == 17);
+    CHECK(fake.asked == "run.cdr");
 }
 
 TEST_CASE("aggregate_sink_consumes_from_several_threads_at_once")
@@ -327,7 +444,7 @@ TEST_CASE("aggregate_sink_consumes_from_several_threads_at_once")
             threads.emplace_back([&] {
                 for (std::size_t round = 0; round < rounds; ++round) {
                     std::vector<CdrRecord> batch { makeRecord(UsageType::U) };
-                    sink.consume(batch);
+                    sink.consume(batch, "");
                 }
             });
         }

@@ -28,7 +28,7 @@ constexpr auto kTimeout = 5s;
 /* A sink that stores what it consumes and lets a test wait for a record count */
 class RecordingSink : public cdrp::ISink {
 public:
-    void consume(std::vector<cdrp::CdrRecord>& batch) override
+    void consume(std::vector<cdrp::CdrRecord>& batch, std::string_view) override
     {
         {
             const std::lock_guard<std::mutex> lock(m_mutex);

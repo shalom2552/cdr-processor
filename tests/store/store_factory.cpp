@@ -29,6 +29,16 @@ public:
         return true;
     }
 
+    uint64_t resume_at(std::string_view) override
+    {
+        return 0;
+    }
+
+    bool mark(std::string_view, uint64_t) override
+    {
+        return true;
+    }
+
     /* What increment() added up to, the marker times every value it took */
     uint64_t counted() const
     {

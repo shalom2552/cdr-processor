@@ -67,19 +67,14 @@ batch is acked at once after the records are safe, and a quiet queue gives back 
 batch instead of waiting. Stopping ends the batch in progress and every later call says it
 is done.
 
-### Dir Watcher
-
-Watches the input directory with inotify and hands out one file at a time. Files arrive
-by rename, so whatever shows up is complete. Claiming a file is another rename into the
-work directory, which keeps two processes off the same file and survives a crash. The
-blocking wait can be woken from another thread to shut the watcher down.
-
 ### Ingestor
 
 `IIngestor` starts and stops the flow of records from a source into a sink. `FileIngestor`
 drives the file path: a feeder thread claims files from the watcher and a thread pool reads
 each one through a `FileSource` into the sink. The parser is chosen once at startup, so a
-bad format is refused before any file moves. Drained files go to done, failures to failed.
+bad format is refused before any file moves. A worker asks the sink where the file resumes
+before opening it, so a file swept back up after a crash starts past what already landed.
+Drained files go to done, failures to failed.
 
 ### Ingestor Factory
 
@@ -93,6 +88,13 @@ running process. Adding a mode is a registration and a class behind `IIngestor`.
 thread, each parsing its own messages into the sink. Connections are opened before the
 threads run, so a broker that is down is refused at startup. A batch is acked in one call
 once its records are in the sink, and anything unacked is redelivered.
+
+### Dir Watcher
+
+Watches the input directory with inotify and hands out one file at a time. Files arrive
+by rename, so whatever shows up is complete. Claiming a file is another rename into the
+work directory, which keeps two processes off the same file and survives a crash. The
+blocking wait can be woken from another thread to shut the watcher down.
 
 ### Delta
 
@@ -113,26 +115,6 @@ fold side by side, each into its own `Delta`.
 thread. The generator counts the same fourteen fields, so what was emitted and what was
 consumed can be put side by side.
 
-### Store
-
-`IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
-is the first one, one hash per key and every increment an `HINCRBY`. `RedisConn` holds the
-connection under it, one per thread, so the write path takes no lock and a reader can share
-it.
-
-### Query Store
-
-`IQueryStore` is the read side of the same counters: every field of a key, the field names
-alone, or the fields it is named. `RedisQuery` is the first one, one Redis read per call over
-the same `RedisConn` the writers use. A key that does not exist reads as empty, and only an
-unreachable or rejecting server reads as a failure.
-
-### Store Factory
-
-`StoreFactory` maps a store type to a store. It registers what it knows at startup and builds
-one by name, or returns nothing when the name is unknown. The name comes from `config.toml`,
-so a second backend is a new class and one line of registration.
-
 ### Aggregate Writer
 
 `AggregateWriter` writes a folded `Delta` into a store: subscribers, operators, and one hash
@@ -140,23 +122,42 @@ of peers per subscriber. It also writes a batch's `Totals` under one hash of its
 knows the key names and nothing about the store behind them, so the same batch can be
 written anywhere `IStore` is implemented.
 
+### Store
+
+`IStore` is a key and field counter store: add a value, flush what was queued, and keep how
+far each source was applied so a reader can pick it back up. `RedisStore` is the first one,
+one hash per key and every increment an `HINCRBY`. Everything between two flushes goes out
+as one transaction, so a batch and the progress that describes it land together or not at
+all. `RedisConn` holds the connection under it, one per thread, so the write path takes no
+lock and a reader can share it.
+
+### Store Factory
+
+`StoreFactory` maps a store type to a store. It registers what it knows at startup and builds
+one by name, or returns nothing when the name is unknown. The name comes from `config.toml`,
+so a second backend is a new class and one line of registration.
+
 ### Sink
 
-`ISink` is where parsed records land. Workers call `consume()` from several threads at once,
-so a sink handles its own locking.
+`ISink` is where parsed records land, each batch named by the source it came from. Workers
+call `consume()` from several threads at once, so a sink handles its own locking, and ask
+`resume_at()` how far a source got before reading it again.
 
 ### Aggregate Sink
 
 `AggregateSink` is the first sink: it folds each batch into a `Delta` and writes it through
 whatever `IStore` it was built with, using `AggregateWriter`. The fold buffer is per thread
 and reused, so batches cost no allocation. It also counts every batch into the `RunTotals` of
-the run, logged when the run ends.
+the run, logged when the run ends, and marks the highest sequence a named source reached in
+the same transaction as that batch's counters, so a run killed mid file resumes without
+counting anything twice.
 
-### Json
+### Query Store
 
-`Json` builds the bodies the query answers are sent as: fields are added one by one and come
-out in the order they were added. Names and values are escaped, so query text that came in
-over HTTP cannot break the response.
+`IQueryStore` is the read side of the same counters: every field of a key, the field names
+alone, or the fields it is named. `RedisQuery` is the first one, one Redis read per call over
+the same `RedisConn` the writers use. A key that does not exist reads as empty, and only an
+unreachable or rejecting server reads as a failure.
 
 ### Query Service
 
@@ -176,12 +177,19 @@ the gateway names no backend of its own.
 The HTTP front of the query API: five routes over digits, each one a `QueryService` call sent
 back as JSON under the status it came with. It runs a listener and a thread pool of its own,
 one request per thread, so starting it returns at once. Unknown paths and handlers that
-throw are answered as JSON too, so a bad request never takes the listener down.
+throw are answered as JSON too, so a bad request never takes the listener down. Every
+answered request is logged with its status.
 
 ### Mapped File
 
 Read only `mmap` of a whole CDR file, handed to the parser as bytes. No copy, no heap,
 so file size does not turn into memory use. Bad paths fail quietly and are logged.
+
+### Json
+
+`Json` builds the bodies the query answers are sent as: fields are added one by one and come
+out in the order they were added. Names and values are escaped, so query text that came in
+over HTTP cannot break the response.
 
 ### Python Generator
 

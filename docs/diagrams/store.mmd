@@ -1,0 +1,51 @@
+---
+title: Store
+---
+%%{init: {"theme": "dark", "themeVariables": {"lineColor": "#a0a8b4"}}}%%
+classDiagram
+    class C_0012987976901397680227["IStore"]
+    class C_0012987976901397680227 {
+        <<abstract>>
+        +flush() bool*
+        +increment(std::string_view key, std::string_view field, uint64_t value) bool*
+        +mark(std::string_view source, uint64_t seq) bool*
+        +resume_at(std::string_view source) uint64_t*
+    }
+    class C_0011977391509635611377["RedisConn"]
+    class C_0011977391509635611377 {
+        +drop() void$
+        +get() redisContext *$
+        -holder() Holder &$
+        +peek() redisContext *$
+    }
+    class C_0017910353137964553875["RedisConn::Holder"]
+    class C_0017910353137964553875 {
+        +&#126;Holder() void
+        +ctx : redisContext *
+    }
+    class C_0002612628033574347004["StoreFactory"]
+    class C_0002612628033574347004 {
+        -StoreFactory() void
+        +createStore(const std::string & name) [const] std::unique_ptr&lt;IStore&gt;
+        +hasStore(const std::string & name) [const] bool
+        +instance() StoreFactory &$
+        +registerStore(const std::string & name, Creator creator) void
+        -m_stores : std::unordered_map&lt;std::string,Creator&gt;
+    }
+    class C_0009211040578075549081["RedisStore"]
+    class C_0009211040578075549081 {
+        -batch() redisContext *
+        -drain() bool
+        +flush() bool
+        +increment(std::string_view key, std::string_view field, uint64_t value) bool
+        +mark(std::string_view source, uint64_t seq) bool
+        +resume_at(std::string_view source) uint64_t
+    }
+    C_0011977391509635611377 ..> C_0017910353137964553875 : 
+    C_0011977391509635611377 ()-- C_0017910353137964553875 : 
+    C_0002612628033574347004 ..> C_0012987976901397680227 : 
+    C_0002612628033574347004 ..> C_0012987976901397680227 : -m_stores
+    C_0012987976901397680227 <|-- C_0009211040578075549081 : 
+
+%% Generated with clang-uml, version 0.0.0-unknown
+%% LLVM version clang version 22.1.8

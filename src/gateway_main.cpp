@@ -23,7 +23,7 @@ int main()
     }
 
     QueryService service(*store);
-    HttpGateway gateway(service);
+    HttpGateway gateway(service, cfg.query.port, cfg.query.host);
 
     if (!gateway.start()) {
         return 1;

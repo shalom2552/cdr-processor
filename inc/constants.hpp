@@ -53,6 +53,9 @@ inline constexpr std::string_view kFieldSmsSuffix = ":sms";
 // totals key
 inline constexpr std::string_view kTotalKey = "total:proc";
 
+// progress key, one field per source, the highest sequence applied from it
+inline constexpr std::string_view kProgressKey = "prog:file";
+
 // totals fields, the usage types rather than the aggregate names
 inline constexpr std::string_view kFieldRecords = "records";
 inline constexpr std::string_view kFieldMocCnt = "moc_cnt";

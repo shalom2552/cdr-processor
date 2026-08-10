@@ -17,7 +17,7 @@ constexpr long long kTimeoutMs = 15000;
 /* A sink that counts what it consumes; the ingestor feeds it from several threads */
 class CountingSink : public cdrp::ISink {
 public:
-    void consume(std::vector<cdrp::CdrRecord>& batch) override
+    void consume(std::vector<cdrp::CdrRecord>& batch, std::string_view) override
     {
         const std::lock_guard<std::mutex> lock(m_mutex);
         m_count += batch.size();

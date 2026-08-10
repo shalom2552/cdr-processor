@@ -31,7 +31,7 @@ Config::Config()
     logDebug(kComponent, "redis: " + redis.host + ":" + std::to_string(redis.port)
         + ", timeout " + std::to_string(redis.timeout_ms) + "ms, store " + store.type);
     logDebug(kComponent, "log: " + log.level + " level");
-    logDebug(kComponent, "query: port " + std::to_string(query.port)
+    logDebug(kComponent, "query: " + query.host + ":" + std::to_string(query.port)
         + ", " + std::to_string(query.concurrency) + " handlers");
 }
 
@@ -70,6 +70,7 @@ void Config::load(std::string_view path)
     redis.timeout_ms = t["redis"]["timeout_ms"].value_or<int>(1000);
 
     query.port = t["query"]["port"].value_or<int>(8080);
+    query.host = t["query"]["host"].value_or<std::string>("0.0.0.0");
     query.concurrency = t["query"]["concurrency"].value_or<std::size_t>(4);
 }
 

@@ -172,6 +172,82 @@ TEST_CASE("file_source_fails_on_a_missing_file")
     CHECK(records.empty());
 }
 
+TEST_CASE("file_source_reads_the_whole_file_when_it_resumes_at_zero")
+{
+    const TempFile file(fileWith(3));
+    const CsvParser parser;
+    FileSource source(file.path(), parser, 0);
+
+    std::vector<CdrRecord> records;
+    REQUIRE(source.next(records) == ICdrSource::Status::OK);
+
+    REQUIRE(records.size() == 3);
+    CHECK(records.front().sequence == 1);
+}
+
+TEST_CASE("file_source_drops_the_sequences_up_to_the_one_it_resumes_at")
+{
+    const TempFile file(fileWith(5));
+    const CsvParser parser;
+    FileSource source(file.path(), parser, 2);
+
+    std::vector<CdrRecord> records;
+    REQUIRE(source.next(records) == ICdrSource::Status::OK);
+
+    REQUIRE(records.size() == 3);
+    CHECK(records.front().sequence == 3);
+    CHECK(records.back().sequence == 5);
+}
+
+TEST_CASE("file_source_yields_nothing_when_the_whole_file_was_applied")
+{
+    const TempFile file(fileWith(4));
+    const CsvParser parser;
+    FileSource source(file.path(), parser, 4);
+
+    std::vector<CdrRecord> records;
+    CHECK(source.next(records) == ICdrSource::Status::DONE);
+    CHECK(records.empty());
+}
+
+TEST_CASE("file_source_keeps_every_record_past_a_resume_beyond_the_file")
+{
+    const TempFile file(fileWith(2));
+    const CsvParser parser;
+    FileSource source(file.path(), parser, 99);
+
+    std::vector<CdrRecord> records;
+    CHECK(source.next(records) == ICdrSource::Status::DONE);
+    CHECK(records.empty());
+}
+
+TEST_CASE("file_source_fills_a_full_batch_past_the_records_it_dropped")
+{
+    const std::size_t total = kFileBatchSize + 10;
+    const TempFile file(fileWith(total));
+    const CsvParser parser;
+    FileSource source(file.path(), parser, 10);
+
+    std::vector<CdrRecord> records;
+    REQUIRE(source.next(records) == ICdrSource::Status::OK);
+
+    CHECK(records.size() == kFileBatchSize);
+    CHECK(records.front().sequence == 11);
+}
+
+TEST_CASE("file_source_resumes_over_a_file_that_holds_a_bad_line")
+{
+    const TempFile file("CDR|csv|3\n" + record(1) + "\ngarbage line\n" + record(3) + "\n");
+    const CsvParser parser;
+    FileSource source(file.path(), parser, 1);
+
+    std::vector<CdrRecord> records;
+    REQUIRE(source.next(records) == ICdrSource::Status::OK);
+
+    REQUIRE(records.size() == 1);
+    CHECK(records.front().sequence == 3);
+}
+
 TEST_CASE("file_source_is_usable_through_the_icdr_source_interface")
 {
     const TempFile file(fileWith(1));
