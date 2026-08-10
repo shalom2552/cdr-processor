@@ -35,7 +35,7 @@ bool link_peers(const IQueryStore& store, std::string_view msisdn, std::vector<s
         return false;
     }
 
-    // Every peer holds two fields, so the names are halved back into peers
+    // Every peer holds one field per metric, so the names are cut back to the peer
     for (auto& field : fields) {
         const std::size_t colon = field.rfind(':');
         if (colon != std::string::npos) {
@@ -71,6 +71,8 @@ bool link_weights(const IQueryStore& store, std::string_view msisdn, std::vector
         peer.msisdn = name;
         if (field.compare(colon, std::string::npos, kFieldSmsSuffix) == 0) {
             peer.sms = to_num(value);
+        } else if (field.compare(colon, std::string::npos, kFieldCntSuffix) == 0) {
+            peer.calls = to_num(value);
         } else {
             peer.duration = to_num(value);
         }

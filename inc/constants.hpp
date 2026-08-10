@@ -57,6 +57,7 @@ inline constexpr std::string_view kFieldBusy = "busy";
 inline constexpr std::string_view kFieldFailed = "failed";
 inline constexpr std::string_view kFieldDurSuffix = ":dur";
 inline constexpr std::string_view kFieldSmsSuffix = ":sms";
+inline constexpr std::string_view kFieldCntSuffix = ":cnt";
 
 // totals key
 inline constexpr std::string_view kTotalKey = "total:proc";
@@ -99,5 +100,6 @@ inline constexpr std::string_view kJsonBusy = "busy";
 inline constexpr std::string_view kJsonFailed = "failed";
 inline constexpr std::string_view kJsonDuration = "duration";
 inline constexpr std::string_view kJsonSms = "sms";
+inline constexpr std::string_view kJsonCalls = "calls";
 inline constexpr std::string_view kJsonMaxHops = "max-hops";
 inline constexpr std::string_view kJsonMaxVisited = "max-visited";

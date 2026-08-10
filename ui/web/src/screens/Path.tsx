@@ -119,7 +119,8 @@ export default function PathScreen({ first, second }: { first?: string; second?:
                 <a href={`#/subscriber/${node}`}>{node}</a>
                 {result.hops?.[index] && (
                   <span className="hop">
-                    {duration(result.hops[index].duration)} · {count(result.hops[index].sms)} sms
+                    {count(result.hops[index].calls)} calls · {duration(result.hops[index].duration)} ·{' '}
+                    {count(result.hops[index].sms)} sms
                   </span>
                 )}
               </li>
@@ -132,8 +133,9 @@ export default function PathScreen({ first, second }: { first?: string; second?:
         <Panel title="the direct link">
           {direct.data ? (
             <p>
-              {direct.data['first-party']} ↔ {direct.data['second-party']}: {duration(direct.data.duration)},{' '}
-              {count(direct.data.sms)} messages. a path of length one and a link are the same fact.
+              {direct.data['first-party']} ↔ {direct.data['second-party']}: {count(direct.data.calls)} calls,{' '}
+              {duration(direct.data.duration)}, {count(direct.data.sms)} messages. a path of length one and
+              a link are the same fact.
             </p>
           ) : (
             <p className="quiet">these two are in no link of their own.</p>

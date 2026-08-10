@@ -194,7 +194,7 @@ Four kinds of hash:
 | --- | --- |
 | `sub:<msisdn>` | `voice_out` `voice_in` `data_rx` `data_tx` `sms_out` `sms_in` `noans` `busy` `failed` |
 | `op:<mccmnc>` | `voice_out` `voice_in` `sms_out` `sms_in` |
-| `link:<owner>` | `<peer>:dur` and `<peer>:sms`, one pair per peer |
+| `link:<owner>` | `<peer>:dur`, `<peer>:cnt` and `<peer>:sms`, one set per peer |
 | `total:proc` | the fourteen totals fields |
 
 Six sorted sets, written with the hashes in the same transaction:

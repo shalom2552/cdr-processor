@@ -88,8 +88,8 @@ function Peers({ msisdn, voice }: { msisdn: string; voice: number }) {
           className="ghost"
           onClick={() =>
             toCsv(`peers-${msisdn}.csv`, [
-              ['msisdn', 'duration', 'sms'],
-              ...data.peers.map((peer) => [peer.msisdn, peer.duration, peer.sms]),
+              ['msisdn', 'calls', 'duration', 'sms'],
+              ...data.peers.map((peer) => [peer.msisdn, peer.calls, peer.duration, peer.sms]),
             ])
           }
         >
@@ -99,12 +99,13 @@ function Peers({ msisdn, voice }: { msisdn: string; voice: number }) {
 
       <table className="grid">
         <thead>
-          <tr><th>peer</th><th className="num">duration</th><th className="num">messages</th><th /></tr>
+          <tr><th>peer</th><th className="num">calls</th><th className="num">duration</th><th className="num">messages</th><th /></tr>
         </thead>
         <tbody>
           {data.peers.map((peer) => (
             <tr key={peer.msisdn}>
               <td><a href={`#/subscriber/${peer.msisdn}`}>{peer.msisdn}</a></td>
+              <td className="num">{count(peer.calls)}</td>
               <td className="num">{duration(peer.duration)}</td>
               <td className="num">{count(peer.sms)}</td>
               <td className="actions">
@@ -137,7 +138,10 @@ export function LinkScreen({ first, second }: { first?: string; second?: string 
       {data && (
         <Panel title={`${data['first-party']} ↔ ${data['second-party']}`}>
           <div className="tiles">
+            <Tile label="calls" value={count(data.calls)} />
             <Tile label="duration" value={duration(data.duration)} />
+            <Tile label="average call" value={duration(data.calls ? data.duration / data.calls : null)}
+                  note={data.calls ? undefined : 'no calls counted for this pair'} />
             <Tile label="messages" value={count(data.sms)} />
           </div>
           <div className="actions">

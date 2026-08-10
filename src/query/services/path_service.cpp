@@ -131,6 +131,7 @@ bool PathService::hops(const std::vector<std::string>& route, std::vector<Json>&
         const std::vector<std::string> fields = {
             route[i + 1] + std::string(kFieldDurSuffix),
             route[i + 1] + std::string(kFieldSmsSuffix),
+            route[i + 1] + std::string(kFieldCntSuffix),
         };
 
         std::vector<std::string> values;
@@ -138,10 +139,11 @@ bool PathService::hops(const std::vector<std::string>& route, std::vector<Json>&
             return false;
         }
 
-        values.resize(2); // a hop that reads empty carried nothing
+        values.resize(fields.size()); // a hop that reads empty carried nothing
         out.emplace_back(Json().add("from", route[i])
                                .add("to", route[i + 1])
                                .add(kJsonDuration, to_num(values[0]))
+                               .add(kJsonCalls, to_num(values[2]))
                                .add(kJsonSms, to_num(values[1])));
     }
 

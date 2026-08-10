@@ -45,7 +45,7 @@ export type Operator = {
   'sms-in': number
 }
 
-export type Peer = { msisdn: string; duration: number; sms: number }
+export type Peer = { msisdn: string; duration: number; calls: number; sms: number }
 
 export type Peers = {
   msisdn: string
@@ -60,10 +60,11 @@ export type Link = {
   'first-party': string
   'second-party': string
   duration: number
+  calls: number
   sms: number
 }
 
-export type Hop = { from: string; to: string; duration: number; sms: number }
+export type Hop = { from: string; to: string; duration: number; calls: number; sms: number }
 
 export type PathResult = { path: string[]; hops?: Hop[] }
 

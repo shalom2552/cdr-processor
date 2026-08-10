@@ -88,12 +88,14 @@ public:
 
     /* Adds both directions of one pair, so the links read the way the writer left them */
     void link(const std::string& first, const std::string& second, const std::string& dur,
-              const std::string& sms)
+              const std::string& sms, const std::string& cnt = "0")
     {
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + first, second + std::string(kFieldCntSuffix), cnt);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + second, first + std::string(kFieldCntSuffix), cnt);
     }
 
     std::map<std::string, Fields> keys;
@@ -104,8 +106,8 @@ public:
 FakeStore seeded()
 {
     FakeStore store;
-    store.link(kFirst, kSecond, "60", "3");
-    store.link(kSecond, kThird, "90", "5");
+    store.link(kFirst, kSecond, "60", "3", "2");
+    store.link(kSecond, kThird, "90", "5", "4");
     return store;
 }
 
@@ -181,7 +183,7 @@ TEST_CASE("path_service_reports_what_one_hop_carried")
 
     CHECK(result.status == 200);
     CHECK(holds(result.body,
-        R"("hops":[{"from":"972500000001","to":"972500000002","duration":60,"sms":3}])"));
+        R"("hops":[{"from":"972500000001","to":"972500000002","duration":60,"calls":2,"sms":3}])"));
 }
 
 TEST_CASE("path_service_reports_what_every_hop_of_two_carried")
@@ -192,8 +194,8 @@ TEST_CASE("path_service_reports_what_every_hop_of_two_carried")
     const Result result = service.path(kFirst, kThird, true);
 
     CHECK(result.status == 200);
-    CHECK(holds(result.body, R"({"from":"972500000001","to":"972500000002","duration":60,"sms":3})"));
-    CHECK(holds(result.body, R"({"from":"972500000002","to":"972500000003","duration":90,"sms":5})"));
+    CHECK(holds(result.body, R"({"from":"972500000001","to":"972500000002","duration":60,"calls":2,"sms":3})"));
+    CHECK(holds(result.body, R"({"from":"972500000002","to":"972500000003","duration":90,"calls":4,"sms":5})"));
 }
 
 TEST_CASE("path_service_reports_no_hops_for_a_path_of_one_subscriber")

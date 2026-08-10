@@ -92,12 +92,14 @@ public:
 
     /* Adds both directions of one pair, so the links read the way the writer left them */
     void link(const std::string& first, const std::string& second, const std::string& dur,
-              const std::string& sms)
+              const std::string& sms, const std::string& cnt = "0")
     {
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + first, second + std::string(kFieldCntSuffix), cnt);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + second, first + std::string(kFieldCntSuffix), cnt);
     }
 
     std::map<std::string, Fields> keys;
@@ -126,8 +128,8 @@ FakeStore seeded()
     store.put(op, std::string(kFieldSmsOut), "30");
     store.put(op, std::string(kFieldSmsIn), "20");
 
-    store.link(kFirst, kSecond, "60", "3");
-    store.link(kSecond, kThird, "90", "5");
+    store.link(kFirst, kSecond, "60", "3", "2");
+    store.link(kSecond, kThird, "90", "5", "4");
     return store;
 }
 
@@ -311,8 +313,8 @@ TEST_CASE("query_service_answers_weighted_peers_with_what_each_exchanged")
 
     CHECK(result.status == 200);
     CHECK(holds(result.body, R"("sort":"dur")"));
-    CHECK(holds(result.body, R"({"msisdn":"972500000003","duration":90,"sms":5})"));
-    CHECK(holds(result.body, R"({"msisdn":"972500000001","duration":60,"sms":3})"));
+    CHECK(holds(result.body, R"({"msisdn":"972500000003","duration":90,"calls":4,"sms":5})"));
+    CHECK(holds(result.body, R"({"msisdn":"972500000001","duration":60,"calls":2,"sms":3})"));
 }
 
 TEST_CASE("query_service_orders_weighted_peers_by_duration")
@@ -354,7 +356,7 @@ TEST_CASE("query_service_breaks_a_tie_on_both_metrics_by_msisdn")
 {
     FakeStore store;
     store.link(kFirst, kThird, "60", "3");
-    store.link(kFirst, kSecond, "60", "3");
+    store.link(kFirst, kSecond, "60", "3", "2");
     const QueryService service(store);
 
     const Result result = service.peers(kFirst, weighted(Sort::Duration));
@@ -431,6 +433,30 @@ TEST_CASE("query_service_answers_a_link_with_what_the_pair_exchanged")
     CHECK(holds(result.body, R"("sms":3)"));
 }
 
+TEST_CASE("query_service_answers_a_link_with_the_calls_behind_it")
+{
+    const FakeStore store = seeded();
+    const QueryService service(store);
+
+    const Result result = service.link(kFirst, kSecond);
+
+    CHECK(result.status == 200);
+    CHECK(holds(result.body, R"("calls":2)"));
+}
+
+TEST_CASE("query_service_answers_a_link_written_before_calls_were_counted")
+{
+    FakeStore store;
+    store.put(std::string(kLinkPrefix) + kFirst, kSecond + std::string(kFieldDurSuffix), "60");
+    const QueryService service(store);
+
+    const Result result = service.link(kFirst, kSecond);
+
+    CHECK(result.status == 200);
+    CHECK(holds(result.body, R"("duration":60)"));
+    CHECK(holds(result.body, R"("calls":0)"));
+}
+
 TEST_CASE("query_service_answers_the_same_counters_both_ways_round")
 {
     const FakeStore store = seeded();
@@ -440,8 +466,8 @@ TEST_CASE("query_service_answers_the_same_counters_both_ways_round")
     const Result backward = service.link(kSecond, kFirst);
 
     CHECK(forward.status == backward.status);
-    CHECK(holds(forward.body, R"("duration":60,"sms":3)"));
-    CHECK(holds(backward.body, R"("duration":60,"sms":3)"));
+    CHECK(holds(forward.body, R"("duration":60,"calls":2,"sms":3)"));
+    CHECK(holds(backward.body, R"("duration":60,"calls":2,"sms":3)"));
 }
 
 TEST_CASE("query_service_answers_404_for_a_pair_never_in_contact")

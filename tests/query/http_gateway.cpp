@@ -115,12 +115,14 @@ public:
 
     /* Adds both directions of one pair, so the links read the way the writer left them */
     void link(const std::string& first, const std::string& second, const std::string& dur,
-              const std::string& sms)
+              const std::string& sms, const std::string& cnt = "0")
     {
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + first, second + std::string(kFieldCntSuffix), cnt);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + second, first + std::string(kFieldCntSuffix), cnt);
     }
 
     std::map<std::string, Fields> keys;
@@ -143,8 +145,8 @@ FakeStore seeded()
 
     store.put(std::string(kTotalKey), std::string(kFieldRecords), "8");
 
-    store.link(kFirst, kSecond, "60", "3");
-    store.link(kFirst, kThird, "10", "9");
+    store.link(kFirst, kSecond, "60", "3", "2");
+    store.link(kFirst, kThird, "10", "9", "1");
 
     store.rank(kVoiceBoard, kFirst, 100);
     store.rank(kVoiceBoard, kSecond, 60);
@@ -287,7 +289,7 @@ TEST_CASE("http_gateway_reads_the_peer_parameters_off_the_query_string")
     CHECK(res->status == 200);
     CHECK(holds(res->body, R"("sort":"sms")"));
     CHECK(holds(res->body, R"("limit":1)"));
-    CHECK(holds(res->body, R"({"msisdn":"972500000003","duration":10,"sms":9})"));
+    CHECK(holds(res->body, R"({"msisdn":"972500000003","duration":10,"calls":1,"sms":9})"));
     CHECK_FALSE(holds(res->body, R"("msisdn":"972500000002")"));
 }
 

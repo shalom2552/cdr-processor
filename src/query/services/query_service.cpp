@@ -134,6 +134,7 @@ Result QueryService::weighted(std::string_view msisdn, const QueryParams& params
     for (const Peer& peer : page(all, params)) {
         peers.emplace_back(Json().add("msisdn", peer.msisdn)
                                  .add(kJsonDuration, peer.duration)
+                                 .add(kJsonCalls, peer.calls)
                                  .add(kJsonSms, peer.sms));
     }
 
@@ -153,13 +154,15 @@ Result QueryService::link(std::string_view first, std::string_view second) const
     const std::vector<std::string> fields = {
         std::string(second) + std::string(kFieldDurSuffix),
         std::string(second) + std::string(kFieldSmsSuffix),
+        std::string(second) + std::string(kFieldCntSuffix),
     };
 
     std::vector<std::string> values;
     if (!m_store.hmget(std::string(kLinkPrefix) + std::string(first), fields, values)) {
         return { 503, Json::error("store unavailable") };
     }
-    if (values.size() != 2 || (values[0].empty() && values[1].empty())) {
+    values.resize(fields.size()); // a link written before the call count has no third field
+    if (values[0].empty() && values[1].empty() && values[2].empty()) {
         return { 404, Json::error("link not found") };
     }
 
@@ -167,6 +170,7 @@ Result QueryService::link(std::string_view first, std::string_view second) const
     json.add("first-party", first)
         .add("second-party", second)
         .add(kJsonDuration, to_num(values[0]))
+        .add(kJsonCalls, to_num(values[2]))
         .add(kJsonSms, to_num(values[1]));
 
     return { 200, json.str() };

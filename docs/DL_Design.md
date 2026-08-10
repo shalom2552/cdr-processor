@@ -219,7 +219,7 @@ without a lookup first.
 
 `SubDelta` counts call seconds each way, bytes each way, messages each way, and the calls
 that went unanswered, busy, or failed. `OpDelta` keeps only voice and sms. `LinkDelta`
-keeps the seconds and messages one pair exchanged.
+keeps the seconds, the calls and the messages one pair exchanged.
 
 `LinkKey` is directed: owner to peer and peer to owner are two entries. `LinkHash` runs
 each half through a splitmix64 finalizer and combines them with an offset, so swapping
@@ -266,8 +266,8 @@ atomic, and a snapshot taken mid merge can hold part of a batch.
 `inc/aggregate/aggregate_writer.hpp`, `src/aggregate/aggregate_writer.cpp`.
 
 Turns a folded `Delta` into store calls. Subscribers go to `sub:<msisdn>`, operators to
-`op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur` and `<peer>:sms` as fields, so a
-subscriber's peers are one hash and not one key per edge. Counters that are 0 are skipped
+`op:<mccmnc>`, links to `link:<owner>` with `<peer>:dur`, `<peer>:cnt` and `<peer>:sms` as
+fields, so a subscriber's peers are one hash and not one key per edge. Counters that are 0 are skipped
 rather than written, since the batch never touched them.
 
 It holds nothing but the store it writes to, so threads can share one writer if the store
@@ -465,10 +465,10 @@ element, and `RankService` is what knows which boards exist.
 
 `inc/query/links.hpp`, `src/query/links.cpp`.
 
-The link hash read two ways. `link_peers()` is `HKEYS` on `link:<msisdn>` with the `:dur`
-and `:sms` suffix dropped, sorted and deduplicated, which is the cheap read the path search
-wants. `link_weights()` is `HGETALL` on the same key with a peer's two fields folded into
-one `Peer`, which is what the weighted route wants: a hub costs one read of every field, and
+The link hash read two ways. `link_peers()` is `HKEYS` on `link:<msisdn>` with the metric
+suffix dropped, sorted and deduplicated, which is the cheap read the path search wants.
+`link_weights()` is `HGETALL` on the same key with a peer's three fields folded into one
+`Peer`, which is what the weighted route wants: a hub costs one read of every field, and
 that is the price of ranking its peers correctly rather than returning an arbitrary slice.
 `order_peers()` sorts by either metric descending, ties by the other metric and then by
 msisdn, so paging is stable.
@@ -482,13 +482,14 @@ read the link hash through one place instead of each halving field names for its
 
 Answers the entity queries out of an `IQueryStore`. `msisdn()` and `op()` read one hash whole
 and rename its fields to the response names; the byte counters go out as bytes, the unit they
-are stored in. `link()` reads the two fields of one pair. A read that failed is answered 503,
+are stored in. `link()` reads the three fields of one pair; a pair written before the call count was kept
+reports zero calls rather than a missing field. A read that failed is answered 503,
 a key with no fields 404.
 
 `peers()` is the one that takes parameters. Without `weights` it is `link_peers()` paged, the
 order still msisdn ascending, plus the count of every peer whether returned or not. With
 `weights` it is `link_weights()` ordered by the chosen metric and paged, each peer carrying
-its duration and its message count. Both report `count`, `offset` and `limit`, so a caller
+its duration, its calls and its message count. Both report `count`, `offset` and `limit`, so a caller
 can page without a second call.
 
 Nothing is kept between calls but the store reference, so one instance serves every handler
@@ -564,7 +565,7 @@ answered logs its method, path and status, unknown routes included.
 | `GET /query/msisdn/{n}` | nine counters, bytes as bytes |
 | `GET /query/operator/{mccmnc}` | four counters |
 | `GET /query/link/{n}` | peers, optionally weighted, sorted and paged |
-| `GET /query/link/{a}/{b}` | duration and sms |
+| `GET /query/link/{a}/{b}` | duration, calls and sms |
 | `GET /query/path/{a}/{b}` | path, optionally per-hop weights |
 | `GET /query/health` | gateway and store state, key count, path bounds |
 | `GET /query/totals` | the store's fourteen lifetime counters |

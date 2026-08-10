@@ -9,7 +9,7 @@ import { Failure, Loading, Panel, Picker, SearchIcon } from '../components/parts
 import { Suggest } from '../components/Suggest'
 
 type GNode = { id: string; x: number; y: number; vx: number; vy: number; expanded: boolean; shown: number; total: number }
-type GEdge = { a: string; b: string; duration: number; sms: number }
+type GEdge = { a: string; b: string; duration: number; calls: number; sms: number }
 
 const key = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`)
 
@@ -70,7 +70,7 @@ export default function GraphScreen({ msisdn }: { msisdn?: string }) {
             vx: 0, vy: 0, expanded: false, shown: 0, total: 0,
           })
         }
-        edges.set(key(id, peer.msisdn), { a: id, b: peer.msisdn, duration: peer.duration, sms: peer.sms })
+        edges.set(key(id, peer.msisdn), { a: id, b: peer.msisdn, duration: peer.duration, calls: peer.calls, sms: peer.sms })
       }
 
       if (refused) setNote(`${refused} peers left off: the canvas is capped at ${settings.maxNodes} nodes.`)
@@ -302,7 +302,8 @@ export default function GraphScreen({ msisdn }: { msisdn?: string }) {
         {busy && <div className="canvas-note"><Loading what="peers" /></div>}
         {hovered && (
           <div className="canvas-note">
-            {hovered.a} ↔ {hovered.b}: {duration(hovered.duration)}, {count(hovered.sms)} messages
+            {hovered.a} ↔ {hovered.b}: {count(hovered.calls)} calls, {duration(hovered.duration)},{' '}
+            {count(hovered.sms)} messages
           </div>
         )}
       </div>

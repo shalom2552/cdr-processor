@@ -15,6 +15,7 @@ struct Peer {
     std::string msisdn;
     uint64_t duration = 0;
     uint64_t sms = 0;
+    uint64_t calls = 0;
 };
 
 /**

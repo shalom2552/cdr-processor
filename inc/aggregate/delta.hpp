@@ -33,6 +33,7 @@ struct OpDelta {
 struct LinkDelta {
     uint64_t dur = 0; // call seconds exchanged
     uint64_t sms = 0; // messages exchanged
+    uint64_t cnt = 0; // calls exchanged
 };
 
 /* a directed pair, owner to peer */
