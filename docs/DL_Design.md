@@ -90,6 +90,13 @@ A file that will not map, or that does not start with a good header, logs a warn
 yields no records. Bad lines inside a good file are skipped by the parser, one bad line
 does not lose the rest.
 
+The constructor also takes a resume sequence, 0 by default. Every parsed record whose
+sequence is at or below it is dropped before the batch is filled, so a file picked back up
+after a crash restarts where it left off instead of at record 1. Sequences are unique
+within a file and the file is read in order, so one number describes the whole of what was
+already applied. The skip is per record, not per offset, so a file that lost a line to the
+parser still resumes at the right place.
+
 ### Rabbit Conn
 
 `inc/source/rabbit_conn.hpp`, `src/source/rabbit_conn.cpp`.
@@ -140,6 +147,11 @@ worker reads the file through a `FileSource` and hands every batch to the sink. 
 for `source.format` is built once at construction from the `ParserFactory`, so an unknown
 format makes `start()` fail before any file is claimed rather than losing files later. That
 one parser serves every worker, since parsing is const and holds no state.
+
+A worker asks the sink where the file resumes before it opens it, keyed by the file's own
+name, and hands that name back with every batch. A file the watcher swept up after a
+`kill -9` is therefore read from the first record the store never saw, and the records that
+already landed are not counted twice.
 
 A drained file is moved to the done directory, or to the failed directory when the source
 reports a failure. `stop()` wakes the watcher, joins the feeder, and drains the pool, so no
@@ -275,9 +287,12 @@ with `redis-cli del total:proc`.
 `inc/store/istore.hpp`.
 
 `IStore::increment()` adds a value to one field of one key, `flush()` completes everything
-queued so far. Both are called from several threads at once, so an implementation owns its
-own locking or gives each thread its own state. Nothing about records or aggregates reaches
-this far: it is keys, fields and numbers.
+queued so far. `resume_at()` reads how far one source was already applied and `mark()`
+queues the new high-water mark without completing it, so the mark goes out with the
+increments it belongs with rather than ahead of them. All of them are called from several
+threads at once, so an implementation owns its own locking or gives each thread its own
+state. Nothing about records or aggregates reaches this far: it is keys, fields, numbers
+and a source name.
 
 ### Redis Conn
 
@@ -303,6 +318,20 @@ command. A reply that carries an error is counted as a failure and logged, so a 
 increment is not read as a write. A broken connection is dropped and opened again on the
 next call, and the commands that were queued on it are lost and reported.
 
+Everything between two flushes is one transaction. A `MULTI` is queued lazily, by the first
+command that follows a flush, and `flush()` closes it with an `EXEC`, so nothing above the
+store has to open or commit anything and the interface stays two writes and a flush. The
+depth drain reads the `+QUEUED` replies the server answers inside a transaction with, so a
+batch larger than the pipeline still goes out in one commit rather than several. Redis
+truncates a trailing partial `MULTI` when it loads the AOF, so a batch killed halfway lands
+whole or not at all.
+
+`resume_at()` is one `HGET` of the source's field of `prog:file`, a field that does not
+exist reading as 0. It flushes first, so no reply of this thread's sits ahead of the one it
+waits for. `mark()` is one `HSET` into the open batch, which is what makes the mark and the
+counters it describes commit together: written before them, a crash between the two would
+lose records for good.
+
 Cost per increment is the append into the output buffer; the round trip is paid once per
 1024 commands instead of once each.
 
@@ -320,9 +349,11 @@ backend is one `registerStore` call and a class behind `IStore`, with nothing el
 
 `inc/sink/isink.hpp`.
 
-`ISink::consume()` takes ownership of a batch of records. It is the far end of ingestion:
-the ingestor's workers call it from several threads at once, so an implementation owns its
-own locking.
+`ISink::consume()` takes ownership of a batch of records and the name of the source they
+came from, empty when that source cannot be resumed. `resume_at()` answers how far a source
+was already consumed, 0 by default, so a sink that keeps no progress needs nothing of it.
+It is the far end of ingestion: the ingestor's workers call it from several threads at
+once, so an implementation owns its own locking.
 
 ### Aggregate Sink
 
@@ -332,7 +363,12 @@ Holds an `Aggregator`, the `IStore` it was built with and an `AggregateWriter` o
 store, so it names no backend and a null store is refused at construction. `consume()`
 folds the batch into a `Delta` and a `Totals`, merges the totals into the run's `RunTotals`,
 then writes both. `snapshot()` hands the run's counters back, records that reached nothing
-included.
+included. `resume_at()` is the store's own answer, passed through.
+
+A batch that came with a source name also has the highest sequence it held marked, queued
+between the totals and the delta write, so the mark rides the flush the delta write ends
+with and commits in the same transaction as the counters. A batch with no source name, or
+one that holds nothing, marks nothing.
 
 The `Delta` is one per thread and lives past the call, so its buckets are reused batch after
 batch and a steady stream allocates nothing. The `Totals` is one per call, on the stack.

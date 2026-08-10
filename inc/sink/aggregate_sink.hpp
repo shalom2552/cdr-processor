@@ -28,11 +28,21 @@ public:
 
     /**
      * Folds one batch, writes it, and counts its records. A batch that did not fully
-     * land is logged and dropped.
+     * land is logged and dropped. A named source also has its progress written, in the
+     * same transaction as the counters it belongs with.
      *
      * @param batch: the records to aggregate
+     * @param source: where the batch came from, empty when it is not resumable
      */
-    void consume(std::vector<CdrRecord>& batch) override;
+    void consume(std::vector<CdrRecord>& batch, std::string_view source) override;
+
+    /**
+     * Asks the store how far this source was already applied.
+     *
+     * @param source: where the records come from
+     * @return the highest sequence already applied, 0 when the source is unseen
+     */
+    uint64_t resume_at(std::string_view source) override;
 
     /**
      * What this run took, counted whether or not it reached the store. The hash in the

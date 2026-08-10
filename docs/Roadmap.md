@@ -66,10 +66,10 @@ graph, REST query API.
 
 ## Phase 5 — Persistence
 
-- [ ] RDB and AOF policy, fsync setting written down
-- [ ] `maxmemory`, no eviction on aggregate keys
-- [ ] Progress keys beside the counters they belong to
-- [ ] Restart drill: `kill -9` mid file, totals still right
+- [x] RDB and AOF policy, fsync setting written down
+- [x] `maxmemory`, no eviction on aggregate keys
+- [x] Progress keys beside the counters they belong to
+- [x] Restart drill: `kill -9` mid file, totals still right
 
 **Warning:** §7 asks for MySQL. Redis persistence replaces it — a deviation to defend.
 
@@ -104,6 +104,8 @@ graph, REST query API.
 
 - A slow Redis blocks a reader, fills the pool queue, and stalls the watcher.
 - A half-failed pipeline leaves a batch partly counted. No rollback.
+- The rabbit path stays at-least-once: a redelivered message is counted again. Only the
+  file path keeps a progress mark.
 - One Redis: single point of failure, single-threaded write bottleneck.
 
 ---

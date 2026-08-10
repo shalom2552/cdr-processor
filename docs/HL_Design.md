@@ -72,7 +72,9 @@ is done.
 `IIngestor` starts and stops the flow of records from a source into a sink. `FileIngestor`
 drives the file path: a feeder thread claims files from the watcher and a thread pool reads
 each one through a `FileSource` into the sink. The parser is chosen once at startup, so a
-bad format is refused before any file moves. Drained files go to done, failures to failed.
+bad format is refused before any file moves. A worker asks the sink where the file resumes
+before opening it, so a file swept back up after a crash starts past what already landed.
+Drained files go to done, failures to failed.
 
 ### Ingestor Factory
 
@@ -122,10 +124,12 @@ written anywhere `IStore` is implemented.
 
 ### Store
 
-`IStore` is a key and field counter store: add a value, flush what was queued. `RedisStore`
-is the first one, one hash per key and every increment an `HINCRBY`. `RedisConn` holds the
-connection under it, one per thread, so the write path takes no lock and a reader can share
-it.
+`IStore` is a key and field counter store: add a value, flush what was queued, and keep how
+far each source was applied so a reader can pick it back up. `RedisStore` is the first one,
+one hash per key and every increment an `HINCRBY`. Everything between two flushes goes out
+as one transaction, so a batch and the progress that describes it land together or not at
+all. `RedisConn` holds the connection under it, one per thread, so the write path takes no
+lock and a reader can share it.
 
 ### Store Factory
 
@@ -135,15 +139,18 @@ so a second backend is a new class and one line of registration.
 
 ### Sink
 
-`ISink` is where parsed records land. Workers call `consume()` from several threads at once,
-so a sink handles its own locking.
+`ISink` is where parsed records land, each batch named by the source it came from. Workers
+call `consume()` from several threads at once, so a sink handles its own locking, and ask
+`resume_at()` how far a source got before reading it again.
 
 ### Aggregate Sink
 
 `AggregateSink` is the first sink: it folds each batch into a `Delta` and writes it through
 whatever `IStore` it was built with, using `AggregateWriter`. The fold buffer is per thread
 and reused, so batches cost no allocation. It also counts every batch into the `RunTotals` of
-the run, logged when the run ends.
+the run, logged when the run ends, and marks the highest sequence a named source reached in
+the same transaction as that batch's counters, so a run killed mid file resumes without
+counting anything twice.
 
 ### Query Store
 

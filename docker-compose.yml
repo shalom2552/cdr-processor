@@ -19,6 +19,8 @@ services:
       - "100"
       - --auto-aof-rewrite-min-size
       - 512mb
+      - --maxmemory-policy
+      - noeviction
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

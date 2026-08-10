@@ -14,7 +14,7 @@ namespace {
 /* A sink the tests hand out, so a created ingestor can be tied back to it */
 class NullSink : public cdrp::ISink {
 public:
-    void consume(std::vector<cdrp::CdrRecord>&) override
+    void consume(std::vector<cdrp::CdrRecord>&, std::string_view) override
     {
     }
 };

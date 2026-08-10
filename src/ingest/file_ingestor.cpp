@@ -92,13 +92,14 @@ void FileIngestor::feed()
 
 void FileIngestor::process(const std::string& file_path)
 {
-    FileSource src(file_path, *m_parser);
+    const std::string source = basename_of(file_path);
+    FileSource src(file_path, *m_parser, m_sink.resume_at(source));
 
     std::vector<CdrRecord> batch;
     FileSource::Status st;
 
     while ((st = src.next(batch)) == FileSource::Status::OK) {
-        m_sink.consume(batch);
+        m_sink.consume(batch, source);
     }
 
     dispose(file_path, st == FileSource::Status::DONE);

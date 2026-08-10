@@ -106,7 +106,7 @@ void RabbitIngestor::consume(std::size_t id)
         }
 
         logDebug(kComponent, tag + ": batch of " + std::to_string(batch.size()));
-        m_sink.consume(batch);
+        m_sink.consume(batch, ""); // the queue keeps no progress
         total += batch.size();
 
         if (!connection.ack(source.last_tag(), true)) {

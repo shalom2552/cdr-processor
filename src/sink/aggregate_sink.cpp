@@ -3,8 +3,11 @@
 #include "cdr_record.hpp"
 #include "aggregate/delta.hpp"
 
+#include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -29,7 +32,7 @@ AggregateSink::AggregateSink(std::unique_ptr<IStore> store)
 {
 }
 
-void AggregateSink::consume(std::vector<CdrRecord>& batch)
+void AggregateSink::consume(std::vector<CdrRecord>& batch, std::string_view source)
 {
     thread_local Delta delta;
     Totals batchTotals;
@@ -38,8 +41,21 @@ void AggregateSink::consume(std::vector<CdrRecord>& batch)
     batchTotals.add(batch);
     m_totals.merge(batchTotals);
 
+    uint64_t highest = 0;
+    for (const CdrRecord& record : batch) {
+        highest = std::max(highest, record.sequence);
+    }
+
     m_writer.write(batchTotals);
+    if (!source.empty() && highest != 0) {
+        m_store->mark(source, highest); // commits with the counters below
+    }
     m_writer.write(delta);
+}
+
+uint64_t AggregateSink::resume_at(std::string_view source)
+{
+    return m_store->resume_at(source);
 }
 
 Totals AggregateSink::snapshot() const
