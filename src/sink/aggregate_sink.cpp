@@ -29,6 +29,7 @@ IStore& checked(const std::unique_ptr<IStore>& store)
 AggregateSink::AggregateSink(std::unique_ptr<IStore> store)
     : m_store(std::move(store))
     , m_writer(checked(m_store))
+    , m_ranks(checked(m_store))
 {
 }
 
@@ -50,7 +51,8 @@ void AggregateSink::consume(std::vector<CdrRecord>& batch, std::string_view sour
     if (!source.empty() && highest != 0) {
         m_store->mark(source, highest); // commits with the counters below
     }
-    m_writer.write(delta);
+    m_ranks.write(delta);
+    m_writer.write(delta); // its flush closes the transaction over all of it
 }
 
 uint64_t AggregateSink::resume_at(std::string_view source)

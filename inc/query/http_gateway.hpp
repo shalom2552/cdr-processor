@@ -1,6 +1,10 @@
 #pragma once
 
-#include "query/query_service.hpp"
+#include "query/iquery_store.hpp"
+#include "query/services/path_service.hpp"
+#include "query/services/query_service.hpp"
+#include "query/services/rank_service.hpp"
+#include "query/services/stats_service.hpp"
 
 #include <memory>
 #include <string>
@@ -12,19 +16,20 @@ namespace cdrp {
 
 /**
  * Serves the query API over HTTP.
+ * Builds the services it answers from over the store it is handed.
  * One thread per connection, capped by query.concurrency; each handler reads the
  * store on its own connection, so nothing is locked.
  */
 class HttpGateway {
 public:
     /**
-     * Constructor, builds the server and binds the routes.
+     * Constructor, builds the services and binds the routes.
      *
-     * @param service: the service every request is answered from
+     * @param store: the store every request is answered from
      * @param port: the port to listen on, 0 for any free one
      * @param host: the address to bind
      */
-    HttpGateway(const QueryService& service, int port, std::string host);
+    HttpGateway(const IQueryStore& store, int port, std::string host);
     ~HttpGateway();
 
     HttpGateway(const HttpGateway&) = delete;
@@ -41,7 +46,20 @@ public:
     int port() const;
 
 private:
-    const QueryService& m_service;
+    /* Binds the routes that look one entity up */
+    void registerQueryRoutes();
+
+    /* Binds the routes that report on the store */
+    void registerStatsRoutes();
+
+    /* Binds the routes that page a ranking */
+    void registerRankRoutes();
+
+private:
+    const QueryService m_service;
+    const PathService m_paths;
+    const StatsService m_stats;
+    const RankService m_ranks;
     int m_port;
     const std::string m_host;
     std::unique_ptr<httplib::Server> m_server;

@@ -282,12 +282,34 @@ way round the totals wait for the next batch and the last batch never goes out.
 The hash sums every run, the block logged at shutdown is one run, so a comparison starts
 with `redis-cli del total:proc`.
 
+## Rank Writer
+
+`inc/aggregate/rank_writer.hpp`, `src/aggregate/rank_writer.cpp`.
+
+Turns the same folded `Delta` into board calls. A subscriber scores on four boards —
+`top:voice` from its two call durations, `top:sms` from its two message counts, `top:data`
+from its two byte counters, `top:fail` from no-answer, busy and failed together — and an
+operator on `top:op-voice` and `top:op-sms`. The member is the msisdn or the mccmnc, so a
+board hands back the same id the lookup routes take. A score of 0 is skipped, the way a
+counter of 0 is.
+
+It does not flush. It runs before the delta write, which drains what both of them queued, so
+a batch's hashes and its boards commit in one transaction or not at all. The member buffer is
+reused down the whole delta, so the pass costs no allocation past the first entry.
+
+Four `ZINCRBY` per subscriber and two per operator on top of nine and four `HINCRBY`, all
+pipelined and none of them read: about forty percent more commands for a ranking that would
+otherwise cost an `HGETALL` per key on every read. Two ranking questions a sorted set cannot
+answer are ratios, which are not incrementally maintainable, and peer count, which needs the
+`HINCRBY` reply the pipeline discards.
+
 ## Store
 
 `inc/store/istore.hpp`.
 
-`IStore::increment()` adds a value to one field of one key, `flush()` completes everything
-queued so far. `resume_at()` reads how far one source was already applied and `mark()`
+`IStore::increment()` adds a value to one field of one key, `rank()` adds a score to one
+member of one board, `flush()` completes everything queued so far. `resume_at()` reads how
+far one source was already applied and `mark()`
 queues the new high-water mark without completing it, so the mark goes out with the
 increments it belongs with rather than ahead of them. All of them are called from several
 threads at once, so an implementation owns its own locking or gives each thread its own
@@ -309,8 +331,10 @@ read side reuses it as it is.
 `inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
 
 One hash per key, every increment an `HINCRBY` appended to a hiredis pipeline on this
-thread's `RedisConn` context, so no lock is taken on the write path. The pipeline depth is
-the store's own, one counter per thread.
+thread's `RedisConn` context, so no lock is taken on the write path. `rank()` appends a
+`ZINCRBY` into the same pipeline and the same open batch, so a board is closed by the flush
+that closes the counters beside it. The pipeline depth is the store's own, one counter per
+thread.
 
 Commands go out without waiting for their replies. The pipeline drains itself once it holds
 `kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
@@ -359,16 +383,18 @@ once, so an implementation owns its own locking.
 
 `inc/sink/aggregate_sink.hpp`, `src/sink/aggregate_sink.cpp`.
 
-Holds an `Aggregator`, the `IStore` it was built with and an `AggregateWriter` over that
-store, so it names no backend and a null store is refused at construction. `consume()`
-folds the batch into a `Delta` and a `Totals`, merges the totals into the run's `RunTotals`,
-then writes both. `snapshot()` hands the run's counters back, records that reached nothing
-included. `resume_at()` is the store's own answer, passed through.
+Holds an `Aggregator`, the `IStore` it was built with, and an `AggregateWriter` and a
+`RankWriter` over that store, so it names no backend and a null store is refused at
+construction. `consume()` folds the batch into a `Delta` and a `Totals`, merges the totals
+into the run's `RunTotals`, then writes the totals, the boards and the counters in that
+order. `snapshot()` hands the run's counters back, records that reached nothing included.
+`resume_at()` is the store's own answer, passed through.
 
 A batch that came with a source name also has the highest sequence it held marked, queued
-between the totals and the delta write, so the mark rides the flush the delta write ends
+between the totals and the board write, so the mark rides the flush the delta write ends
 with and commits in the same transaction as the counters. A batch with no source name, or
-one that holds nothing, marks nothing.
+one that holds nothing, marks nothing. Only the delta write flushes, so the totals, the
+mark, the boards and the counters are one commit.
 
 The `Delta` is one per thread and lives past the call, so its buckets are reused batch after
 batch and a steady stream allocates nothing. The `Totals` is one per call, on the stack.
@@ -381,19 +407,28 @@ logged by the writer and dropped.
 `inc/query/iquery_store.hpp`.
 
 The read side of the same counters. `hgetall()` reads every field of one key, `hkeys()` the
-field names alone, `hmget()` the fields it is named. Each one clears the output first and
-returns false only when the store could not be reached, so a key that does not exist is a
-success with nothing in it. Calls come from several threads at once, and the interface
-carries keys, fields and strings, nothing about records or aggregates.
+field names alone, `hmget()` the fields it is named, `dbsize()` how many keys the store
+holds, and `top()` one page of a board with the board's cardinality beside it. Each one
+clears the output first and returns false only when the store could not be reached, so a key
+that does not exist is a success with nothing in it. `Ranked` sits beside `Fields` in the
+same shape, a vector of pairs owned by the caller. Calls come from several threads at once,
+and the interface carries keys, fields, members and numbers, nothing about records or
+aggregates.
 
 ## Redis Query
 
 `inc/query/redis_query.hpp`, `src/query/redis_query.cpp`.
 
-`HGETALL`, `HKEYS` and `HMGET` over this thread's `RedisConn` context, one round trip per
-call, no lock and no state of its own. Keys and field names go out as lengths and bytes, so
-a `string_view` over a larger buffer is read as it stands. Values come back as strings, and
-an element that is not a string reads as empty.
+`HGETALL`, `HKEYS`, `HMGET` and `DBSIZE` over this thread's `RedisConn` context, one round
+trip per call, no lock and no state of its own. Keys and field names go out as lengths and
+bytes, so a `string_view` over a larger buffer is read as it stands. Values come back as
+strings, and an element that is not a string reads as empty.
+
+`top()` is the one call that costs two round trips: a `ZCARD` for the board's cardinality,
+then `ZREVRANGE start stop WITHSCORES` for the page, `-1` as the stop when no limit was
+asked for. A score arrives as text because Redis keeps it as a double and prints it with
+`%.17g`, so it is read with `strtod` and truncated. That caps an exact score at 2^53, which
+no counter here reaches.
 
 A broken connection is logged and dropped, so the next call opens a new one, and the read
 returns false. A reply that carries an error is logged and also returns false, so a rejected
@@ -401,21 +436,103 @@ read is never read as an empty key. `hmget()` with no field names asks nothing a
 
 Cost per call is one round trip plus one allocation for the reply and one per value kept.
 
+## Result
+
+`inc/query/result.hpp`.
+
+The `{ int status; std::string body; }` every service hands back. Four lines of its own so
+the four services and the gateway name one type rather than one service's nested one.
+
+## Query Params
+
+`inc/query/query_params.hpp`, `src/query/query_params.cpp`.
+
+`QueryParams` is the four optional parameters a listing route takes: `weights`, `sort`,
+`offset` and `limit`. `parseParams()` fills it from an `httplib::Request` and hands back a
+`Result` — 200 with an empty body when it parsed, 400 naming the parameter when it did not.
+`weights` takes only `0` or `1`, `sort` only `dur` or `sms`, and `offset` and `limit` must
+be a whole number end to end, so `10x` is refused rather than read as 10. A request that
+names no limit is given the fallback its route passes, and a limit over the cap is clamped
+to it and reported clamped. A limit of 0 asks for every entry, which is what a direct caller
+that fills the struct itself gets.
+
+`page()` beside it cuts a vector to the offset and limit, empty when the offset is past the
+end. Both live here rather than in a handler so the rule is written once and can be tested
+without a running server. The board name is not this file's business: it arrives as a path
+element, and `RankService` is what knows which boards exist.
+
+## Links
+
+`inc/query/links.hpp`, `src/query/links.cpp`.
+
+The link hash read two ways. `link_peers()` is `HKEYS` on `link:<msisdn>` with the `:dur`
+and `:sms` suffix dropped, sorted and deduplicated, which is the cheap read the path search
+wants. `link_weights()` is `HGETALL` on the same key with a peer's two fields folded into
+one `Peer`, which is what the weighted route wants: a hub costs one read of every field, and
+that is the price of ranking its peers correctly rather than returning an arbitrary slice.
+`order_peers()` sorts by either metric descending, ties by the other metric and then by
+msisdn, so paging is stable.
+
+Both take the store as an argument and keep nothing, so `QueryService` and `PathService`
+read the link hash through one place instead of each halving field names for itself.
+
 ## Query Service
 
-`inc/query/query_service.hpp`, `src/query/query_service.cpp`.
+`inc/query/services/query_service.hpp`, `src/query/services/query_service.cpp`.
 
-Answers the queries out of an `IQueryStore`. `msisdn()` and `op()` read one hash whole and
-rename its fields to the response names, the byte counters divided into KB. `peers()` reads
-the field names of a subscriber's link hash and halves them back into peers by dropping the
-`:dur` and `:sms` suffix. `link()` reads the two fields of one pair. A read that failed is
-answered 503, a key with no fields 404.
+Answers the entity queries out of an `IQueryStore`. `msisdn()` and `op()` read one hash whole
+and rename its fields to the response names; the byte counters go out as bytes, the unit they
+are stored in. `link()` reads the two fields of one pair. A read that failed is answered 503,
+a key with no fields 404.
+
+`peers()` is the one that takes parameters. Without `weights` it is `link_peers()` paged, the
+order still msisdn ascending, plus the count of every peer whether returned or not. With
+`weights` it is `link_weights()` ordered by the chosen metric and paged, each peer carrying
+its duration and its message count. Both report `count`, `offset` and `limit`, so a caller
+can page without a second call.
+
+Nothing is kept between calls but the store reference, so one instance serves every handler
+thread the store is safe for.
+
+## Path Service
+
+`inc/query/services/path_service.hpp`, `src/query/services/path_service.cpp`.
 
 `path()` runs a breadth first search from both parties at once, expanding the narrower
 frontier each round so the search stays off the hubs, and joins the two trails at the
-subscriber they share. One store read per subscriber expanded, and the search gives up with
-a 404 after `kMaxHops` rounds or `kMaxVisited` subscribers. Nothing is kept between calls but
-the store reference, so one instance serves every handler thread the store is safe for.
+subscriber they share. One store read per subscriber expanded, and the search gives up after
+`query.max_hops` rounds or `query.max_visited` subscribers. The 404 body carries both bounds,
+so a caller states the limit rather than guessing it.
+
+With `weights` it resolves the path it already holds: one `HMGET` per hop after the search,
+bounded by the hop limit. A hop that reads empty reports zeros rather than failing — the link
+exists, the search walked it. Doing it here is one pass; from a caller it is one round trip
+per hop of a path it was just handed.
+
+## Stats Service
+
+`inc/query/services/stats_service.hpp`, `src/query/services/stats_service.cpp`.
+
+`health()` is one `dbsize()`, which proves the connection and returns the key count in the
+same round trip. It always answers 200: the route reports on the gateway, and the gateway
+answered, so an unreachable store is `"store":"down"` with `"keys":0` rather than a 503. The
+path bounds go out with it, read from config.
+
+`totals()` is one `HGETALL` on `total:proc`, the fourteen fields written out under the stored
+names with underscores turned into hyphens. A missing or empty hash is 200 with every field
+0, not 404: a store that has processed nothing is a real state, and unlike a subscriber the
+store itself always exists. Only an unreachable store is 503. The counters are lifetime, every
+run since the hash was last cleared, and nothing here invents a run identity.
+
+## Rank Service
+
+`inc/query/services/rank_service.hpp`, `src/query/services/rank_service.cpp`.
+
+`top()` maps a board name to its key — `voice`, `sms`, `data`, `fail`, `op-voice`, `op-sms` —
+refuses anything else with a 400, and hands the offset and limit to `IQueryStore::top()`. The
+store does the paging, so the cost is `O(log n + k)` and no key is scanned. The response
+carries the board, its whole cardinality, the offset and limit it was served under, and the
+page as `{ id, score }` objects. An empty board is 200 with no entries, never 404.
 
 ## Query Factory
 
@@ -431,27 +548,48 @@ backend are registered together and the gateway names no class of its own.
 
 `inc/query/http_gateway.hpp`, `src/query/http_gateway.cpp`.
 
-The HTTP front of the query API, cpp-httplib behind it. The constructor builds the server and
-binds five routes, each one a regex over digits that hands its captures to a `QueryService`
-call and sends what comes back as `application/json` under the status it came with. A path
-that matches no route answers 404 with a JSON body, and a handler that throws is logged and
+The HTTP front of the query API, cpp-httplib behind it. It takes the `IQueryStore` and holds
+the four services by value, so nothing above it constructs or names them; they are stateless
+and cost a reference each. The constructor builds the server and calls
+`registerQueryRoutes()`, `registerStatsRoutes()` and `registerRankRoutes()`, which bind eight
+routes between them, each one handing its captures to a service call and sending what comes
+back as `application/json` under the status it came with. Three of them run `parseParams()`
+first and send its 400 unchanged, so a bad parameter never reaches a service. A path that
+matches no route answers 404 with a JSON body, and a handler that throws is logged and
 answered 500, so a failing query never takes the listener down. Every request that was
 answered logs its method, path and status, unknown routes included.
+
+| Route | Answers |
+|---|---|
+| `GET /query/msisdn/{n}` | nine counters, bytes as bytes |
+| `GET /query/operator/{mccmnc}` | four counters |
+| `GET /query/link/{n}` | peers, optionally weighted, sorted and paged |
+| `GET /query/link/{a}/{b}` | duration and sms |
+| `GET /query/path/{a}/{b}` | path, optionally per-hop weights |
+| `GET /query/health` | gateway and store state, key count, path bounds |
+| `GET /query/totals` | the store's fourteen lifetime counters |
+| `GET /query/top/{board}` | one page of a ranking, six boards |
+
+200 with a body, 400 on a bad parameter, 404 for an entity never seen, 503 when the store is
+unreachable, 500 when a handler throws, JSON on every one. `/query/health` never 503s, and
+`/query/totals` and `/query/top` never 404.
 
 `start()` binds `query.port` and serves it on a thread of its own, so it returns as soon as
 the port is taken and false when it is not. `stop()` ends the listener and joins that thread,
 and the destructor calls it, so a gateway that goes out of scope leaves nothing running.
 Requests are served by a thread pool of `query.concurrency` threads, one request at a
 time each, and the store gives every thread its own connection, so nothing is locked between
-handlers. The service reference is held, not copied, and the response body is moved into the
-response, so a query costs its store reads and one JSON buffer.
+handlers. The response body is moved into the response, so a query costs its store reads and
+one JSON buffer.
 
 ## Config
 
 `inc/config.hpp`, `src/config.cpp`.
 
 Singleton, built on first use. `load()` reads `config.toml` with toml++, `validate()`
-checks the values. Both are private, so nothing can change the config later.
+checks the values. Both are private, so nothing can change the config later. `query.max_hops`
+and `query.max_visited` live here rather than in `constants.hpp` because they are the two
+numbers worth tuning per deployment and the API states them on screen.
 
 The header defines `inline const Config& cfg`, so any file that includes it reads
 settings as `cfg.rabbit.url`.
@@ -526,10 +664,12 @@ reference. Not copyable: two owners would unmap the same pages twice.
 
 `inc/util/json.hpp`, `src/util/json.cpp`.
 
-Builder of a flat JSON object for the query responses. `add()` takes a string, a number or
-a vector of strings and appends the field to one buffer, so the fields come out in the order
-they were added and `str()` only wraps that buffer in braces. `error()` builds the one field
-object the failing queries answer with.
+Builder of a JSON object for the query responses. `add()` takes a string, a number, a vector
+of strings or a vector of `Json`, and appends the field to one buffer, so the fields come out
+in the order they were added and `str()` only wraps that buffer in braces. The vector of
+`Json` is what the weighted peers, the path hops and the board entries are built from: each
+element is a whole object, so one nesting level costs no parser and no tree. `error()` builds
+the one field object the failing queries answer with.
 
 Every name and every string value is written through `quoted()`, which escapes quotes,
 backslashes and control characters, so text that came in over HTTP cannot break the body.

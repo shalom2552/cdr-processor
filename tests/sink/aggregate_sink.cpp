@@ -113,6 +113,12 @@ public:
         return true;
     }
 
+    bool rank(std::string_view, std::string_view, uint64_t) override
+    {
+        calls.emplace_back("rank");
+        return true;
+    }
+
     bool flush() override
     {
         calls.emplace_back("flush");

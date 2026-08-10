@@ -18,6 +18,9 @@ using namespace cdrp;
 /* A key of this suite's own, so a live server keeps none of it that matters */
 const std::string kKey = "cdrp:test:store";
 
+/* The board of this suite's own */
+const std::string kBoard = "cdrp:test:board";
+
 /* The empty key one test writes to */
 const std::string kEmptyKey;
 
@@ -35,7 +38,7 @@ struct Cleanup {
             if (ctx) redisFree(ctx);
             return;
         }
-        for (const std::string* key : { &kKey, &kEmptyKey, &kLongKey }) {
+        for (const std::string* key : { &kKey, &kBoard, &kEmptyKey, &kLongKey }) {
             freeReplyObject(redisCommand(ctx, "DEL %b", key->data(), key->size()));
         }
         redisFree(ctx);
@@ -98,6 +101,46 @@ TEST_CASE("redis_store_answers_an_increment_the_same_way_the_server_is_reachable
 
     CHECK(queued == serverUp());
     CHECK(elapsed < 5000);
+    CHECK(store.flush());
+}
+
+TEST_CASE("redis_store_answers_a_rank_the_same_way_the_server_is_reachable")
+{
+    RedisStore store;
+    bool queued = false;
+
+    const long long elapsed = millisOf([&] { queued = store.rank(kBoard, "one", 1); });
+
+    CHECK(queued == serverUp());
+    CHECK(elapsed < 5000);
+    CHECK(store.flush());
+}
+
+TEST_CASE("redis_store_closes_a_rank_and_an_increment_with_one_flush")
+{
+    RedisStore store;
+
+    CHECK(store.increment(kKey, "both", 1) == serverUp());
+    CHECK(store.rank(kBoard, "both", 1) == serverUp());
+    CHECK(store.flush());
+    CHECK(store.flush());
+}
+
+TEST_CASE("redis_store_takes_a_score_larger_than_a_32_bit_counter")
+{
+    RedisStore store;
+
+    CHECK(store.rank(kBoard, "wide", 8589934592ULL) == serverUp());
+    CHECK(store.flush());
+}
+
+TEST_CASE("redis_store_takes_a_board_and_member_that_are_not_terminated")
+{
+    RedisStore store;
+    const std::string buffer = kBoard + "xxxx";
+    const std::string_view board(buffer.data(), kBoard.size());
+
+    CHECK(store.rank(board, std::string_view("longmember", 4), 1) == serverUp());
     CHECK(store.flush());
 }
 

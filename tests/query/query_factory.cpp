@@ -40,6 +40,20 @@ public:
         return true;
     }
 
+    bool dbsize(uint64_t& out) const override
+    {
+        out = 1;
+        return true;
+    }
+
+    bool top(std::string_view, std::size_t, std::size_t, Ranked& out, uint64_t& count) const override
+    {
+        out.clear();
+        out.emplace_back(m_marker, 1);
+        count = 1;
+        return true;
+    }
+
 private:
     std::string m_marker;
 };

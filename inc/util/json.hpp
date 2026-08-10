@@ -42,6 +42,15 @@ public:
     Json& add(const std::string_view name, const std::vector<std::string>& values);
 
     /**
+     * Adds an array of objects, empty writes an empty array.
+     *
+     * @param name: the field name
+     * @param values: the objects to write, each wrapped in braces
+     * @return this object, so adds can be chained
+     */
+    Json& add(const std::string_view name, const std::vector<Json>& values);
+
+    /**
      * Builds the object text, the builder stays usable after it.
      *
      * @return the fields added so far, wrapped in braces

@@ -4,6 +4,7 @@
 #include "cdr_record.hpp"
 #include "aggregate/aggregate_writer.hpp"
 #include "aggregate/aggregator.hpp"
+#include "aggregate/rank_writer.hpp"
 #include "aggregate/totals.hpp"
 #include "store/istore.hpp"
 
@@ -14,13 +15,13 @@ namespace cdrp {
 
 /**
  * Folds every batch into its increments and writes them through the store it was built with.
- * Holds an Aggregator, that store, and an AggregateWriter over it.
+ * Holds an Aggregator, that store, and the counter and board writers over it.
  * Thread-safe: the fold uses per-thread state and the store one connection per thread.
  */
 class AggregateSink : public ISink {
 public:
     /**
-     * Constructor, hands the store to the writer that fills it.
+     * Constructor, hands the store to the writers that fill it.
      *
      * @param store: the store every counter is written to
      */
@@ -56,6 +57,7 @@ private:
     Aggregator m_aggregator;
     std::unique_ptr<IStore> m_store;
     AggregateWriter m_writer;
+    RankWriter m_ranks;
 
     RunTotals m_totals;
 };

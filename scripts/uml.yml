@@ -49,7 +49,11 @@ diagrams:
         - cdrp::RedisQuery
         - cdrp::Aggregator
         - cdrp::AggregateWriter
+        - cdrp::RankWriter
         - cdrp::QueryService
+        - cdrp::PathService
+        - cdrp::StatsService
+        - cdrp::RankService
         - cdrp::HttpGateway
         - cdrp::CdrRecord
         - cdrp::Delta

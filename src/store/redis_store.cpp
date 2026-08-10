@@ -64,6 +64,24 @@ bool RedisStore::increment(std::string_view key, std::string_view field, uint64_
     return queued < kRedisPipelineDepth || drain();
 }
 
+bool RedisStore::rank(std::string_view board, std::string_view member, uint64_t value)
+{
+    redisContext* ctx = batch();
+    if (!ctx) {
+        return false;
+    }
+
+    const int rc = redisAppendCommand(ctx, "ZINCRBY %b %llu %b", board.data(), board.size(),
+                                      static_cast<unsigned long long>(value), member.data(), member.size());
+    if (rc != REDIS_OK) {
+        logError(kComponent, ctx->errstr);
+        return false;
+    }
+
+    ++queued;
+    return queued < kRedisPipelineDepth || drain();
+}
+
 bool RedisStore::mark(std::string_view source, uint64_t seq)
 {
     redisContext* ctx = batch();

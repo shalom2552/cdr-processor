@@ -83,7 +83,8 @@ graph, REST query API.
 - [ ] Source id per harvester, so progress keys never collide
 - [ ] Sequence numbers unique across harvesters
 - [ ] Console client
-- [ ] Web UI, optional
+- [x] Query API the web UI needs — health, totals, rankings, weighted peers and hops
+- [ ] Web UI over those routes
 
 ---
 

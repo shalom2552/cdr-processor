@@ -74,6 +74,8 @@ public:
         int port;
         std::string host;
         std::size_t concurrency;
+        std::size_t max_hops;
+        std::size_t max_visited;
     } query;
 };
 
