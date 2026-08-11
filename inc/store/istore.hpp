@@ -23,6 +23,16 @@ public:
      */
     virtual bool increment(std::string_view key, std::string_view field, uint64_t value) = 0;
 
+    /**
+     * Adds value to one member of one board, creating either if missing.
+     *
+     * @param board: the key holding the members
+     * @param member: the member within the board
+     * @param value: the amount to add
+     * @return false when the write could not be queued
+     */
+    virtual bool rank(std::string_view board, std::string_view member, uint64_t value) = 0;
+
     /* Completes every increment queued so far. False when any of them failed. */
     virtual bool flush() = 0;
 

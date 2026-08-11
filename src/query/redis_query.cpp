@@ -6,6 +6,7 @@
 
 #include <hiredis/hiredis.h>
 #include <cstddef>
+#include <cstdlib>
 #include <string>
 
 constexpr std::string_view kComponent = "RedisQuery";
@@ -15,6 +16,16 @@ namespace cdrp {
 std::string RedisQuery::element_str(const redisReply* element)
 {
     return element->type == REDIS_REPLY_STRING ? std::string(element->str, element->len) : std::string();
+}
+
+uint64_t RedisQuery::element_score(const redisReply* element)
+{
+    if (element->type != REDIS_REPLY_STRING) {
+        return 0;
+    }
+
+    // a score is a double, redis writes it with %.17g
+    return static_cast<uint64_t>(std::strtod(std::string(element->str, element->len).c_str(), nullptr));
 }
 
 bool RedisQuery::hgetall(const std::string_view key, Fields& out) const
@@ -94,6 +105,68 @@ bool RedisQuery::hmget(const std::string_view key, const std::vector<std::string
         out.reserve(reply->elements);
         for (std::size_t i = 0; i < reply->elements; ++i) {
             out.push_back(element_str(reply->element[i]));
+        }
+    }
+
+    freeReplyObject(reply);
+    return true;
+}
+
+bool RedisQuery::dbsize(uint64_t& out) const
+{
+    out = 0;
+
+    const char* argv[] = { "DBSIZE" };
+    const std::size_t lens[] = { sizeof("DBSIZE") - 1 };
+
+    redisReply* reply = command(1, argv, lens);
+    if (!reply) {
+        return false;
+    }
+
+    if (reply->type == REDIS_REPLY_INTEGER) {
+        out = static_cast<uint64_t>(reply->integer);
+    }
+
+    freeReplyObject(reply);
+    return true;
+}
+
+bool RedisQuery::top(std::string_view board, std::size_t offset, std::size_t limit,
+                     Ranked& out, uint64_t& count) const
+{
+    out.clear();
+    count = 0;
+
+    const char* cardArgv[] = { "ZCARD", board.data() };
+    const std::size_t cardLens[] = { sizeof("ZCARD") - 1, board.size() };
+
+    redisReply* card = command(2, cardArgv, cardLens);
+    if (!card) {
+        return false;
+    }
+    if (card->type == REDIS_REPLY_INTEGER) {
+        count = static_cast<uint64_t>(card->integer);
+    }
+    freeReplyObject(card);
+
+    // -1 is the last member, so an unset limit takes the whole board
+    const std::string start = std::to_string(offset);
+    const std::string stop = limit == 0 ? "-1" : std::to_string(offset + limit - 1);
+
+    const char* argv[] = { "ZREVRANGE", board.data(), start.data(), stop.data(), "WITHSCORES" };
+    const std::size_t lens[] = { sizeof("ZREVRANGE") - 1, board.size(), start.size(), stop.size(),
+                                 sizeof("WITHSCORES") - 1 };
+
+    redisReply* reply = command(5, argv, lens);
+    if (!reply) {
+        return false;
+    }
+
+    if (reply->type == REDIS_REPLY_ARRAY) {
+        out.reserve(reply->elements / 2);
+        for (std::size_t i = 0; i + 1 < reply->elements; i += 2) {
+            out.emplace_back(element_str(reply->element[i]), element_score(reply->element[i + 1]));
         }
     }
 

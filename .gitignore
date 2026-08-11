@@ -8,3 +8,7 @@ build/
 dist/
 __pycache__/
 compile_commands.json
+
+# ui
+node_modules/
+ui/api/data/

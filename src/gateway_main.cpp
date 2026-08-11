@@ -2,7 +2,6 @@
 #include "logger.hpp"
 #include "query/http_gateway.hpp"
 #include "query/query_factory.hpp"
-#include "query/query_service.hpp"
 #include "util/signal_waiter.hpp"
 
 #include <string>
@@ -22,8 +21,7 @@ int main()
         return 1;
     }
 
-    QueryService service(*store);
-    HttpGateway gateway(service, cfg.query.port, cfg.query.host);
+    HttpGateway gateway(*store, cfg.query.port, cfg.query.host);
 
     if (!gateway.start()) {
         return 1;

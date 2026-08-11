@@ -26,6 +26,11 @@ public:
         return incrementOk;
     }
 
+    bool rank(std::string_view, std::string_view, uint64_t) override
+    {
+        return true;
+    }
+
     bool flush() override
     {
         ++flushes;
@@ -145,6 +150,19 @@ TEST_CASE("aggregate_writer_writes_a_link_under_the_owner_and_the_peer")
     CHECK(store.calls.size() == 2);
     CHECK(store.valueOf(kLinkKey, "496221540" + std::string(kFieldDurSuffix)) == 15);
     CHECK(store.valueOf(kLinkKey, "496221540" + std::string(kFieldSmsSuffix)) == 2);
+}
+
+TEST_CASE("aggregate_writer_writes_the_calls_behind_a_link")
+{
+    FakeStore store;
+    AggregateWriter writer(store);
+    Delta delta;
+    delta.links[LinkKey { 972528409042ULL, 496221540ULL }].dur = 15;
+    delta.links[LinkKey { 972528409042ULL, 496221540ULL }].cnt = 3;
+
+    CHECK(writer.write(delta));
+
+    CHECK(store.valueOf(kLinkKey, "496221540" + std::string(kFieldCntSuffix)) == 3);
 }
 
 TEST_CASE("aggregate_writer_keeps_the_two_directions_of_a_pair_apart")

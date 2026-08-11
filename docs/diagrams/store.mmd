@@ -9,6 +9,7 @@ classDiagram
         +flush() bool*
         +increment(std::string_view key, std::string_view field, uint64_t value) bool*
         +mark(std::string_view source, uint64_t seq) bool*
+        +rank(std::string_view board, std::string_view member, uint64_t value) bool*
         +resume_at(std::string_view source) uint64_t*
     }
     class C_0011977391509635611377["RedisConn"]
@@ -39,6 +40,7 @@ classDiagram
         +flush() bool
         +increment(std::string_view key, std::string_view field, uint64_t value) bool
         +mark(std::string_view source, uint64_t seq) bool
+        +rank(std::string_view board, std::string_view member, uint64_t value) bool
         +resume_at(std::string_view source) uint64_t
     }
     C_0011977391509635611377 ..> C_0017910353137964553875 : 

@@ -28,7 +28,7 @@ void Aggregator::fold(const std::vector<CdrRecord>& batch, Delta& out) const
                 if (op) {
                     op->voice_out += r.duration;
                 }
-                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, r.duration, 0);
+                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, r.duration, 0, 1);
                 break;
 
             case UsageType::MTC:
@@ -36,7 +36,7 @@ void Aggregator::fold(const std::vector<CdrRecord>& batch, Delta& out) const
                 if (op) {
                     op->voice_in += r.duration;
                 }
-                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, r.duration, 0);
+                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, r.duration, 0, 1);
                 break;
 
             case UsageType::SMS_MO:
@@ -44,7 +44,7 @@ void Aggregator::fold(const std::vector<CdrRecord>& batch, Delta& out) const
                 if (op) {
                     ++op->sms_out;
                 }
-                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, 0, 1);
+                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, 0, 1, 0);
                 break;
 
             case UsageType::SMS_MT:
@@ -52,7 +52,7 @@ void Aggregator::fold(const std::vector<CdrRecord>& batch, Delta& out) const
                 if (op) {
                     ++op->sms_in;
                 }
-                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, 0, 1);
+                addLink(out.links, r.subscriberMSISDN, r.secondPartyMSISDN, 0, 1, 0);
                 break;
 
             case UsageType::D:
@@ -75,7 +75,8 @@ void Aggregator::fold(const std::vector<CdrRecord>& batch, Delta& out) const
     }
 }
 
-void Aggregator::addLink(LinkMap& links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms)
+void Aggregator::addLink(LinkMap& links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms,
+                         uint64_t cnt)
 {
     if (b == 0) {
         return;
@@ -84,10 +85,12 @@ void Aggregator::addLink(LinkMap& links, uint64_t a, uint64_t b, uint64_t dur, u
     LinkDelta& fwd = links[LinkKey{a, b}];
     fwd.dur += dur;
     fwd.sms += sms;
+    fwd.cnt += cnt;
 
     LinkDelta& rev = links[LinkKey{b, a}];
     rev.dur += dur;
     rev.sms += sms;
+    rev.cnt += cnt;
 }
 
 } // namespace cdrp

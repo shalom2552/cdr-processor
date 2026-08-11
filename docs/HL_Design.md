@@ -122,14 +122,23 @@ of peers per subscriber. It also writes a batch's `Totals` under one hash of its
 knows the key names and nothing about the store behind them, so the same batch can be
 written anywhere `IStore` is implemented.
 
+### Rank Writer
+
+`RankWriter` writes the boards a folded `Delta` implies: one sorted set per ranking, four for
+subscribers and two for operators. Same shape as `AggregateWriter` and the same store, but
+boards rather than hashes, so neither had to take on the other's job. It does not flush; the
+`AggregateWriter` write that follows closes the transaction over both. Ranking is paid here,
+once per batch at `O(log n)`, instead of by a scan on every read.
+
 ### Store
 
-`IStore` is a key and field counter store: add a value, flush what was queued, and keep how
-far each source was applied so a reader can pick it back up. `RedisStore` is the first one,
-one hash per key and every increment an `HINCRBY`. Everything between two flushes goes out
-as one transaction, so a batch and the progress that describes it land together or not at
-all. `RedisConn` holds the connection under it, one per thread, so the write path takes no
-lock and a reader can share it.
+`IStore` is a key and field counter store: add a value, add a board score, flush what was
+queued, and keep how far each source was applied so a reader can pick it back up.
+`RedisStore` is the first one, one hash per key and every increment an `HINCRBY`, every
+board score a `ZINCRBY`. Everything between two flushes goes out as one transaction, so a
+batch, its boards and the progress that describes it land together or not at all.
+`RedisConn` holds the connection under it, one per thread, so the write path takes no lock
+and a reader can share it.
 
 ### Store Factory
 
@@ -146,7 +155,8 @@ call `consume()` from several threads at once, so a sink handles its own locking
 ### Aggregate Sink
 
 `AggregateSink` is the first sink: it folds each batch into a `Delta` and writes it through
-whatever `IStore` it was built with, using `AggregateWriter`. The fold buffer is per thread
+whatever `IStore` it was built with, using `AggregateWriter` for the counters and
+`RankWriter` for the boards. The fold buffer is per thread
 and reused, so batches cost no allocation. It also counts every batch into the `RunTotals` of
 the run, logged when the run ends, and marks the highest sequence a named source reached in
 the same transaction as that batch's counters, so a run killed mid file resumes without
@@ -155,16 +165,57 @@ counting anything twice.
 ### Query Store
 
 `IQueryStore` is the read side of the same counters: every field of a key, the field names
-alone, or the fields it is named. `RedisQuery` is the first one, one Redis read per call over
-the same `RedisConn` the writers use. A key that does not exist reads as empty, and only an
-unreachable or rejecting server reads as a failure.
+alone, the fields it is named, how many keys the store holds, and one page of a board.
+`RedisQuery` is the first one, one Redis read per call over the same `RedisConn` the writers
+use, a board page being a `ZCARD` and a `ZREVRANGE`. A key that does not exist reads as
+empty, and only an unreachable or rejecting server reads as a failure.
+
+### Result
+
+The `{ status, body }` every service hands back: what to send and what to send with it. It
+sits on its own so the four services and the gateway name one type.
+
+### Query Params
+
+The optional parameters a listing route takes — weights, sort, offset, limit — parsed off
+one request, the limit clamped to a cap and anything that does not parse refused as a 400.
+Paging a listing is the same function beside it. Kept out of the handlers so the rule is
+written once and can be tested without a server.
+
+### Links
+
+Reads one subscriber's link hash, either as the peer names alone or as peers with what each
+pair exchanged, and orders the weighted ones by either metric. It knows the link key and the
+two field suffixes, which is why both the peer lookup and the path search read it through
+here rather than each halving field names for itself.
 
 ### Query Service
 
-Turns one query into store reads and a JSON body: a subscriber's usage, an operator's
-traffic, a subscriber's peers, what a pair exchanged, and the path between two. The path is
-searched from both parties at once over the link hashes, bounded in hops and in subscribers
-visited. It knows the aggregate keys and nothing of HTTP, and hands back a status and a body.
+Turns one entity query into store reads and a JSON body: a subscriber's usage, an operator's
+traffic, a subscriber's peers, and what a pair exchanged. Peers come back as names or with
+the weight of every edge, ordered and paged. Counters go out in the units they are stored
+in. It knows the aggregate keys and nothing of HTTP.
+
+### Path Service
+
+Finds a path between two subscribers over the link hashes, searching from both parties at
+once and expanding the narrower side. Two bounds from `config.toml` stop it, in hops and in
+subscribers read, and a search that gives up reports both so a caller never guesses the
+limit. It can also report what each hop of the path carried, which is one read per hop the
+caller would otherwise make itself.
+
+### Stats Service
+
+Reports on the store rather than on anything in it: whether it answers, how many keys it
+holds and the path bounds, and the lifetime counters of the totals hash. A store that cannot
+be reached is a state it describes, not an error it fails on, so the health route always
+answers.
+
+### Rank Service
+
+Answers one page of a ranking. It knows which boards exist and the key each is kept under,
+refuses a name that is not one of them, and pages what the store hands back. Six boards:
+voice, sms, data and failures by subscriber, voice and sms by operator.
 
 ### Query Factory
 
@@ -174,11 +225,14 @@ the gateway names no backend of its own.
 
 ### Http Gateway
 
-The HTTP front of the query API: five routes over digits, each one a `QueryService` call sent
-back as JSON under the status it came with. It runs a listener and a thread pool of its own,
-one request per thread, so starting it returns at once. Unknown paths and handlers that
-throw are answered as JSON too, so a bad request never takes the listener down. Every
-answered request is logged with its status.
+The HTTP front of the query API: eight routes under `/query`, each one a service call sent
+back as JSON under the status it came with. It is handed the store and builds the four
+services itself, so nothing above it names them. Routes are bound in three groups —
+lookups, store reports, rankings — and the listing ones parse their parameters before the
+service sees them. It runs a listener and a thread pool of its own, one request per thread,
+so starting it returns at once. Unknown paths and handlers that throw are answered as JSON
+too, so a bad request never takes the listener down. Every answered request is logged with
+its status.
 
 ### Mapped File
 
@@ -188,8 +242,9 @@ so file size does not turn into memory use. Bad paths fail quietly and are logge
 ### Json
 
 `Json` builds the bodies the query answers are sent as: fields are added one by one and come
-out in the order they were added. Names and values are escaped, so query text that came in
-over HTTP cannot break the response.
+out in the order they were added, a field being text, a number, an array of either, or an
+array of objects. Names and values are escaped, so query text that came in over HTTP cannot
+break the response.
 
 ### Python Generator
 
@@ -200,3 +255,26 @@ The generator generates CDR records to three different destinations:
 3. **rabbitmw (-r, --rabbit)**: sends the records to a RabbitMQ queue
 
 
+### UI Backend
+
+FastAPI, one process under `ui/api`. One endpoint per gateway route, same shapes, under
+`/api`, so the browser stays same origin and the timeouts live in one place. It opens no
+Redis connection: anything the UI needs that the gateway cannot answer becomes a gateway
+route, not a store read in python. It also reads `config.toml` off disk for the config
+screen, and serves the built web app.
+
+### Sampler
+
+A background task in the UI backend. Every `sample_interval` seconds it calls `/query/health`
+and `/query/totals` and appends one row to a SQLite file: the timestamp, the fourteen
+counters, the key count. That file is the only history in the system, so a curve starts when
+the UI starts. Rates are derived at read time, a failed poll writes no row, and rows past
+retention are swept daily.
+
+### Web App
+
+React and TypeScript under `ui/web`, built by Vite. Nine screens off a left rail: dashboard,
+subscriber, rankings, graph, path, operator, config, system, settings. It reads and never
+writes: no counter, no config, no process. Charts and the contact graph are drawn from the
+data itself, in SVG and on a canvas, so the app carries no chart library. Paging, expansion
+and canvas limits are the settings screen's, kept in browser storage.

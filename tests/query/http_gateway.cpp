@@ -1,11 +1,16 @@
 #include "doctest.h"
 #include "constants.hpp"
 #include "query/http_gateway.hpp"
-#include "query/query_service.hpp"
 #include "query/iquery_store.hpp"
+#include "query/services/path_service.hpp"
+#include "query/services/query_service.hpp"
+#include "query/services/rank_service.hpp"
+#include "query/services/stats_service.hpp"
 
 #include "httplib.h"
+#include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <map>
 #include <string>
 #include <thread>
@@ -19,6 +24,7 @@ using namespace cdrp;
 /* The subscribers the tests read, one pair in contact */
 const std::string kFirst = "972500000001";
 const std::string kSecond = "972500000002";
+const std::string kThird = "972500000003";
 const std::string kStranger = "972500000009";
 
 /* The operator the tests read */
@@ -72,6 +78,35 @@ public:
         return true;
     }
 
+    bool dbsize(uint64_t& out) const override
+    {
+        out = keys.size();
+        return true;
+    }
+
+    bool top(std::string_view board, std::size_t offset, std::size_t limit,
+             Ranked& out, uint64_t& count) const override
+    {
+        out.clear();
+        const auto found = boards.find(std::string(board));
+        count = found == boards.end() ? 0 : found->second.size();
+        if (found == boards.end() || offset >= found->second.size()) {
+            return true;
+        }
+
+        const std::size_t left = found->second.size() - offset;
+        const std::size_t taken = limit == 0 ? left : std::min(limit, left);
+        out.assign(found->second.begin() + static_cast<std::ptrdiff_t>(offset),
+                   found->second.begin() + static_cast<std::ptrdiff_t>(offset + taken));
+        return true;
+    }
+
+    /* Adds one member to one board, the board made when it is written to first */
+    void rank(std::string_view board, const std::string& member, uint64_t score)
+    {
+        boards[std::string(board)].emplace_back(member, score);
+    }
+
     /* Adds one field to one key, the key made when it is written to first */
     void put(const std::string& key, const std::string& field, const std::string& value)
     {
@@ -80,18 +115,21 @@ public:
 
     /* Adds both directions of one pair, so the links read the way the writer left them */
     void link(const std::string& first, const std::string& second, const std::string& dur,
-              const std::string& sms)
+              const std::string& sms, const std::string& cnt = "0")
     {
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + first, second + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + first, second + std::string(kFieldCntSuffix), cnt);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldDurSuffix), dur);
         put(std::string(kLinkPrefix) + second, first + std::string(kFieldSmsSuffix), sms);
+        put(std::string(kLinkPrefix) + second, first + std::string(kFieldCntSuffix), cnt);
     }
 
     std::map<std::string, Fields> keys;
+    std::map<std::string, Ranked> boards;
 };
 
-/* A store holding one subscriber, one operator, and the pair first - second */
+/* A store holding one subscriber, one operator, the pair first - second, and one board */
 FakeStore seeded()
 {
     FakeStore store;
@@ -105,7 +143,13 @@ FakeStore seeded()
     store.put(op, std::string(kFieldVoiceOut), "600");
     store.put(op, std::string(kFieldSmsOut), "30");
 
-    store.link(kFirst, kSecond, "60", "3");
+    store.put(std::string(kTotalKey), std::string(kFieldRecords), "8");
+
+    store.link(kFirst, kSecond, "60", "3", "2");
+    store.link(kFirst, kThird, "10", "9", "1");
+
+    store.rank(kVoiceBoard, kFirst, 100);
+    store.rank(kVoiceBoard, kSecond, 60);
     return store;
 }
 
@@ -140,8 +184,8 @@ bool ready(int port)
 /* A gateway listening for as long as it is alive, on the port it was given */
 class Listening {
 public:
-    Listening(const QueryService& service, int port = kAnyPort)
-        : m_gateway(service, port, kHost)
+    Listening(const IQueryStore& store, int port = kAnyPort)
+        : m_gateway(store, port, kHost)
         , m_bound(m_gateway.start())
     {
     }
@@ -189,8 +233,7 @@ TEST_CASE("http_gateway_is_neither_copyable_nor_copy_assignable")
 TEST_CASE("http_gateway_answers_a_subscriber_with_the_service_body")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -199,15 +242,14 @@ TEST_CASE("http_gateway_answers_a_subscriber_with_the_service_body")
     REQUIRE(res);
     CHECK(res->status == 200);
     CHECK(res->get_header_value("Content-Type") == "application/json");
-    CHECK(res->body == service.msisdn(kFirst).body);
+    CHECK(res->body == QueryService(store).msisdn(kFirst).body);
     CHECK(holds(res->body, R"("voice-out":60)"));
 }
 
 TEST_CASE("http_gateway_answers_an_operator_with_the_service_body")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -215,14 +257,13 @@ TEST_CASE("http_gateway_answers_an_operator_with_the_service_body")
 
     REQUIRE(res);
     CHECK(res->status == 200);
-    CHECK(res->body == service.op(kOperator).body);
+    CHECK(res->body == QueryService(store).op(kOperator).body);
 }
 
 TEST_CASE("http_gateway_answers_one_msisdn_under_link_with_its_peers")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -230,15 +271,46 @@ TEST_CASE("http_gateway_answers_one_msisdn_under_link_with_its_peers")
 
     REQUIRE(res);
     CHECK(res->status == 200);
-    CHECK(res->body == service.peers(kFirst).body);
     CHECK(holds(res->body, kSecond));
+    CHECK(holds(res->body, R"("count":2)"));
+    CHECK(holds(res->body, R"("limit":)" + std::to_string(kPeerLimit)));
+}
+
+TEST_CASE("http_gateway_reads_the_peer_parameters_off_the_query_string")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/link/" + kFirst + "?weights=1&sort=sms&limit=1");
+
+    REQUIRE(res);
+    CHECK(res->status == 200);
+    CHECK(holds(res->body, R"("sort":"sms")"));
+    CHECK(holds(res->body, R"("limit":1)"));
+    CHECK(holds(res->body, R"({"msisdn":"972500000003","duration":10,"calls":1,"sms":9})"));
+    CHECK_FALSE(holds(res->body, R"("msisdn":"972500000002")"));
+}
+
+TEST_CASE("http_gateway_sends_a_400_for_a_parameter_it_refuses")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/link/" + kFirst + "?limit=ten");
+
+    REQUIRE(res);
+    CHECK(res->status == 400);
+    CHECK(holds(res->body, "limit"));
 }
 
 TEST_CASE("http_gateway_answers_two_msisdns_under_link_with_what_they_exchanged")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -246,14 +318,13 @@ TEST_CASE("http_gateway_answers_two_msisdns_under_link_with_what_they_exchanged"
 
     REQUIRE(res);
     CHECK(res->status == 200);
-    CHECK(res->body == service.link(kFirst, kSecond).body);
+    CHECK(res->body == QueryService(store).link(kFirst, kSecond).body);
 }
 
 TEST_CASE("http_gateway_answers_a_path_between_two_msisdns")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -261,14 +332,104 @@ TEST_CASE("http_gateway_answers_a_path_between_two_msisdns")
 
     REQUIRE(res);
     CHECK(res->status == 200);
-    CHECK(res->body == service.path(kFirst, kSecond).body);
+    CHECK(res->body == PathService(store).path(kFirst, kSecond, false).body);
+}
+
+TEST_CASE("http_gateway_adds_the_hops_of_a_path_when_they_are_asked_for")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/path/" + kFirst + "/" + kSecond + "?weights=1");
+
+    REQUIRE(res);
+    CHECK(res->status == 200);
+    CHECK(holds(res->body, R"("hops":[)"));
+}
+
+TEST_CASE("http_gateway_answers_health_with_the_store_state")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/health");
+
+    REQUIRE(res);
+    CHECK(res->status == 200);
+    CHECK(res->body == StatsService(store).health().body);
+    CHECK(holds(res->body, R"("status":"ok")"));
+    CHECK(holds(res->body, R"("store":"up")"));
+}
+
+TEST_CASE("http_gateway_answers_totals_with_the_lifetime_counters")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/totals");
+
+    REQUIRE(res);
+    CHECK(res->status == 200);
+    CHECK(res->body == StatsService(store).totals().body);
+    CHECK(holds(res->body, R"("records":8)"));
+}
+
+TEST_CASE("http_gateway_answers_a_board_with_one_page_of_it")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/top/voice");
+
+    REQUIRE(res);
+    CHECK(res->status == 200);
+    CHECK(holds(res->body, R"("board":"voice")"));
+    CHECK(holds(res->body, R"("count":2)"));
+    CHECK(holds(res->body, R"("limit":)" + std::to_string(kTopLimit)));
+    CHECK(holds(res->body, R"({"id":"972500000001","score":100})"));
+}
+
+TEST_CASE("http_gateway_reads_the_board_parameters_off_the_query_string")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/top/voice?limit=1&offset=1");
+
+    REQUIRE(res);
+    CHECK(res->status == 200);
+    CHECK(holds(res->body, R"("offset":1)"));
+    CHECK(holds(res->body, R"({"id":"972500000002","score":60})"));
+    CHECK_FALSE(holds(res->body, R"("id":"972500000001")"));
+}
+
+TEST_CASE("http_gateway_sends_a_400_for_a_board_that_does_not_exist")
+{
+    const FakeStore store = seeded();
+    const Listening gateway(store);
+    REQUIRE(ready(gateway.port()));
+
+    httplib::Client cli = client(gateway.port());
+    const auto res = cli.Get("/query/top/calls");
+
+    REQUIRE(res);
+    CHECK(res->status == 400);
 }
 
 TEST_CASE("http_gateway_passes_the_service_404_on")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -276,14 +437,13 @@ TEST_CASE("http_gateway_passes_the_service_404_on")
 
     REQUIRE(res);
     CHECK(res->status == 404);
-    CHECK(res->body == service.msisdn(kStranger).body);
+    CHECK(res->body == QueryService(store).msisdn(kStranger).body);
 }
 
 TEST_CASE("http_gateway_sends_a_json_404_for_a_route_it_does_not_serve")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -297,8 +457,7 @@ TEST_CASE("http_gateway_sends_a_json_404_for_a_route_it_does_not_serve")
 TEST_CASE("http_gateway_serves_no_route_for_a_parameter_that_is_not_a_number")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     httplib::Client cli = client(gateway.port());
@@ -312,8 +471,7 @@ TEST_CASE("http_gateway_serves_no_route_for_a_parameter_that_is_not_a_number")
 TEST_CASE("http_gateway_answers_several_connections_at_once")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening gateway(service);
+    const Listening gateway(store);
     REQUIRE(ready(gateway.port()));
 
     constexpr int kCallers = 8;
@@ -339,9 +497,8 @@ TEST_CASE("http_gateway_answers_several_connections_at_once")
 TEST_CASE("http_gateway_start_returns_true_once_the_port_is_bound")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
 
-    HttpGateway gateway(service, kAnyPort, kHost);
+    HttpGateway gateway(store, kAnyPort, kHost);
     const bool bound = gateway.start();
 
     REQUIRE(ready(gateway.port()));
@@ -354,12 +511,11 @@ TEST_CASE("http_gateway_start_returns_true_once_the_port_is_bound")
 TEST_CASE("http_gateway_start_returns_false_when_the_port_is_taken")
 {
     const FakeStore store = seeded();
-    const QueryService service(store);
-    const Listening first(service);
+    const Listening first(store);
     REQUIRE(first.bound());
     REQUIRE(ready(first.port()));
 
-    const Listening second(service, first.port());
+    const Listening second(store, first.port());
 
     CHECK_FALSE(second.bound());
 }

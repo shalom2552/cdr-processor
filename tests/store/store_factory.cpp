@@ -24,6 +24,11 @@ public:
         return true;
     }
 
+    bool rank(std::string_view, std::string_view, uint64_t) override
+    {
+        return true;
+    }
+
     bool flush() override
     {
         return true;

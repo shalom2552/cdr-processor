@@ -33,6 +33,8 @@ Config::Config()
     logDebug(kComponent, "log: " + log.level + " level");
     logDebug(kComponent, "query: " + query.host + ":" + std::to_string(query.port)
         + ", " + std::to_string(query.concurrency) + " handlers");
+    logDebug(kComponent, "query: " + std::to_string(query.max_hops) + " hops, "
+        + std::to_string(query.max_visited) + " subscribers per path search");
 }
 
 void Config::load(std::string_view path)
@@ -72,6 +74,8 @@ void Config::load(std::string_view path)
     query.port = t["query"]["port"].value_or<int>(8080);
     query.host = t["query"]["host"].value_or<std::string>("0.0.0.0");
     query.concurrency = t["query"]["concurrency"].value_or<std::size_t>(4);
+    query.max_hops = t["query"]["max_hops"].value_or<std::size_t>(6);
+    query.max_visited = t["query"]["max_visited"].value_or<std::size_t>(10000);
 }
 
 void Config::validate()
@@ -138,6 +142,12 @@ void Config::validate()
         unsigned n = std::thread::hardware_concurrency();
         query.concurrency = (n == 0) ? 4 : n;
         logInfo(kComponent, "setting max query handlers: " + std::to_string(query.concurrency));
+    }
+    if (query.max_hops == 0) {
+        throw std::runtime_error("Query max hops must be greater than zero");
+    }
+    if (query.max_visited == 0) {
+        throw std::runtime_error("Query max visited must be greater than zero");
     }
 }
 

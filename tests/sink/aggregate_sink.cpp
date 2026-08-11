@@ -42,7 +42,8 @@ redisContext* probe()
     return ctx;
 }
 
-/* Drops every key this suite wrote, so a live server is left as it was found */
+/* Drops every key this suite wrote, so a live server is left as it was found. The boards
+   are shared with everything else in the store, so its members go rather than the key. */
 struct Cleanup {
     ~Cleanup()
     {
@@ -54,6 +55,20 @@ struct Cleanup {
             { &kSubKey, &kPeerSubKey, &kOpKey, &kLinkKey, &kPeerLinkKey }) {
             freeReplyObject(redisCommand(ctx, "DEL %b", key->data(), key->size()));
         }
+
+        const std::string sub = std::to_string(kMsisdn);
+        const std::string peer = std::to_string(kPeerMsisdn);
+        const std::string op = std::to_string(kOpCode);
+
+        for (const std::string_view board : { kVoiceBoard, kSmsBoard, kDataBoard, kFailBoard }) {
+            freeReplyObject(redisCommand(ctx, "ZREM %b %b %b", board.data(), board.size(),
+                sub.data(), sub.size(), peer.data(), peer.size()));
+        }
+        for (const std::string_view board : { kOpVoiceBoard, kOpSmsBoard }) {
+            freeReplyObject(redisCommand(ctx, "ZREM %b %b", board.data(), board.size(),
+                op.data(), op.size()));
+        }
+
         redisFree(ctx);
     }
 };
@@ -110,6 +125,12 @@ public:
     bool increment(std::string_view, std::string_view, uint64_t) override
     {
         calls.emplace_back("increment");
+        return true;
+    }
+
+    bool rank(std::string_view, std::string_view, uint64_t) override
+    {
+        calls.emplace_back("rank");
         return true;
     }
 

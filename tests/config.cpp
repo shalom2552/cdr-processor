@@ -33,3 +33,20 @@ TEST_CASE("config_redis_section")
     CHECK(config.redis.port > 0);
     CHECK(config.redis.timeout_ms > 0);
 }
+
+TEST_CASE("config_query_section")
+{
+    const cdrp::Config& config = cdrp::Config::instance();
+
+    CHECK_FALSE(config.query.host.empty());
+    CHECK(config.query.port > 0);
+    CHECK(config.query.concurrency > 0);
+}
+
+TEST_CASE("config_query_path_bounds")
+{
+    const cdrp::Config& config = cdrp::Config::instance();
+
+    CHECK(config.query.max_hops > 0);
+    CHECK(config.query.max_visited > 0);
+}

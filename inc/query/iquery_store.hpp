@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,6 +19,9 @@ namespace cdrp {
 class IQueryStore {
 public:
     using Fields = std::vector<std::pair<std::string, std::string>>;
+
+    /* A board's members with their scores */
+    using Ranked = std::vector<std::pair<std::string, uint64_t>>;
 
     virtual ~IQueryStore() = default;
 
@@ -48,6 +53,27 @@ public:
      */
     virtual bool hmget(const std::string_view key, const std::vector<std::string>& field_names,
                        std::vector<std::string>& out) const = 0;
+
+    /**
+     * Reads how many keys the store holds.
+     *
+     * @param out: filled with the key count
+     * @return false when the read failed
+     */
+    virtual bool dbsize(uint64_t& out) const = 0;
+
+    /**
+     * Reads one page of a board, highest score first.
+     *
+     * @param board: the key holding the members
+     * @param offset: the members skipped
+     * @param limit: the members returned, 0 for every one of them
+     * @param out: filled with the member/score pairs, cleared first
+     * @param count: filled with the members the board holds, whether returned or not
+     * @return false when the read failed
+     */
+    virtual bool top(std::string_view board, std::size_t offset, std::size_t limit,
+                     Ranked& out, uint64_t& count) const = 0;
 };
 
 } // namespace cdrp

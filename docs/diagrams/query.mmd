@@ -6,9 +6,11 @@ classDiagram
     class C_0016825886504236010012["IQueryStore"]
     class C_0016825886504236010012 {
         <<abstract>>
+        +dbsize(uint64_t & out) [const] bool*
         +hgetall(const std::string_view key, Fields & out) [const] bool*
         +hkeys(const std::string_view key, std::vector&lt;std::string&gt; & out) [const] bool*
         +hmget(const std::string_view key, const std::vector&lt;std::string&gt; & field_names, std::vector&lt;std::string&gt; & out) [const] bool*
+        +top(std::string_view board, std::size_t offset, std::size_t limit, Ranked & out, uint64_t & count) [const] bool*
     }
     class C_0000446428521560048476["QueryFactory"]
     class C_0000446428521560048476 {
@@ -22,51 +24,116 @@ classDiagram
     class C_0007436692389984772457["RedisQuery"]
     class C_0007436692389984772457 {
         -command(int argc, const char ** argv, const std::size_t * lens) redisReply *$
+        +dbsize(uint64_t & out) [const] bool
+        -element_score(const redisReply * element) uint64_t$
         -element_str(const redisReply * element) std::string$
         +hgetall(const std::string_view key, Fields & out) [const] bool
         +hkeys(const std::string_view key, std::vector&lt;std::string&gt; & out) [const] bool
         +hmget(const std::string_view key, const std::vector&lt;std::string&gt; & field_names, std::vector&lt;std::string&gt; & out) [const] bool
+        +top(std::string_view board, std::size_t offset, std::size_t limit, Ranked & out, uint64_t & count) [const] bool
+    }
+    class C_0006064563654502160722["Result"]
+    class C_0006064563654502160722 {
+        +body : std::string
+        +status : int
+    }
+    class C_0007472519213590589183["::httplib::Request"]
+    class C_0007472519213590589183 {
+    }
+    class C_0000867282091731240055["::httplib::Server"]
+    class C_0000867282091731240055 {
+    }
+    class C_0014580811032731177816["Sort"]
+    class C_0014580811032731177816 {
+        <<enumeration>>
+        Duration
+        Sms
+    }
+    class C_0014031600252442648652["QueryParams"]
+    class C_0014031600252442648652 {
+        +limit : std::size_t
+        +offset : std::size_t
+        +sort : Sort
+        +weights : bool
+    }
+    class C_0013335459426770781440["Peer"]
+    class C_0013335459426770781440 {
+        +duration : uint64_t
+        +msisdn : std::string
+        +sms : uint64_t
+    }
+    class C_0013169109224289640608["PathService"]
+    class C_0013169109224289640608 {
+        +PathService(const IQueryStore & store) void
+        -found(const std::vector&lt;std::string&gt; & route, bool weights) [const] Result
+        -hops(const std::vector&lt;std::string&gt; & route, std::vector&lt;Json&gt; & out) [const] bool
+        -notFound() std::string$
+        +path(std::string_view first, std::string_view second, bool weights) [const] Result
+        -walk(const Trail & head, const Trail & tail, const std::string & meet) std::vector&lt;std::string&gt;$
+        -m_store : const IQueryStore &
     }
     class C_0006341152374390112720["QueryService"]
     class C_0006341152374390112720 {
         +QueryService(const IQueryStore & store) void
         +link(std::string_view first, std::string_view second) [const] Result
         +msisdn(std::string_view msisdn) [const] Result
-        -neighbours(std::string_view msisdn, std::vector&lt;std::string&gt; & out) [const] bool
         +op(std::string_view mccmnc) [const] Result
-        +path(std::string_view first, std::string_view second) [const] Result
-        +peers(std::string_view msisdn) [const] Result
-        -walk(const Trail & head, const Trail & tail, const std::string & meet) std::vector&lt;std::string&gt;$
+        +peers(std::string_view msisdn, const QueryParams & params) [const] Result
+        -weighted(std::string_view msisdn, const QueryParams & params) [const] Result
         -m_store : const IQueryStore &
     }
-    class C_0015225834146114611262["QueryService::Result"]
-    class C_0015225834146114611262 {
-        +body : std::string
-        +status : int
+    class C_0004290539103002244799["RankService"]
+    class C_0004290539103002244799 {
+        +RankService(const IQueryStore & store) void
+        -keyOf(std::string_view board) std::string_view$
+        +top(std::string_view board, const QueryParams & params) [const] Result
+        -m_store : const IQueryStore &
     }
-    class C_0000867282091731240055["::httplib::Server"]
-    class C_0000867282091731240055 {
+    class C_0005488252523494370716["StatsService"]
+    class C_0005488252523494370716 {
+        +StatsService(const IQueryStore & store) void
+        +health() [const] Result
+        +totals() [const] Result
+        -m_store : const IQueryStore &
     }
     class C_0013124099472554209867["HttpGateway"]
     class C_0013124099472554209867 {
-        +HttpGateway(const QueryService & service, int port, std::string host) void
+        +HttpGateway(const IQueryStore & store, int port, std::string host) void
         +port() [const] int
+        -registerQueryRoutes() void
+        -registerRankRoutes() void
+        -registerStatsRoutes() void
         +start() bool
         +stop() void
         -m_host : const std::string
         -m_listener : std::thread
+        -m_paths : const PathService
         -m_port : int
+        -m_ranks : const RankService
         -m_running : bool
         -m_server : std::unique_ptr&lt;httplib::Server&gt;
-        -m_service : const QueryService &
+        -m_service : const QueryService
+        -m_stats : const StatsService
     }
     C_0000446428521560048476 ..> C_0016825886504236010012 : 
     C_0000446428521560048476 ..> C_0016825886504236010012 : -m_queries
     C_0016825886504236010012 <|-- C_0007436692389984772457 : 
-    C_0006341152374390112720 ..> C_0015225834146114611262 : 
+    C_0014031600252442648652 o-- C_0014580811032731177816 : +sort
+    C_0013169109224289640608 ..> C_0006064563654502160722 : 
+    C_0013169109224289640608 --> C_0016825886504236010012 : -m_store
+    C_0006341152374390112720 ..> C_0006064563654502160722 : 
+    C_0006341152374390112720 ..> C_0014031600252442648652 : 
     C_0006341152374390112720 --> C_0016825886504236010012 : -m_store
-    C_0006341152374390112720 ()-- C_0015225834146114611262 : 
-    C_0013124099472554209867 --> C_0006341152374390112720 : -m_service
+    C_0004290539103002244799 ..> C_0014031600252442648652 : 
+    C_0004290539103002244799 ..> C_0006064563654502160722 : 
+    C_0004290539103002244799 --> C_0016825886504236010012 : -m_store
+    C_0005488252523494370716 ..> C_0006064563654502160722 : 
+    C_0005488252523494370716 --> C_0016825886504236010012 : -m_store
+    C_0013124099472554209867 ..> C_0016825886504236010012 : 
+    C_0013124099472554209867 o-- C_0006341152374390112720 : -m_service
+    C_0013124099472554209867 o-- C_0013169109224289640608 : -m_paths
+    C_0013124099472554209867 o-- C_0005488252523494370716 : -m_stats
+    C_0013124099472554209867 o-- C_0004290539103002244799 : -m_ranks
     C_0013124099472554209867 o-- C_0000867282091731240055 : -m_server
 
 %% Generated with clang-uml, version 0.0.0-unknown

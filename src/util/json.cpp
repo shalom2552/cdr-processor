@@ -32,6 +32,20 @@ Json& Json::add(const std::string_view name, const std::vector<std::string>& val
     return *this;
 }
 
+Json& Json::add(const std::string_view name, const std::vector<Json>& values)
+{
+    key(name);
+    m_body += '[';
+    for (std::size_t i = 0; i < values.size(); ++i) {
+        if (i != 0) {
+            m_body += ',';
+        }
+        m_body += values[i].str();
+    }
+    m_body += ']';
+    return *this;
+}
+
 std::string Json::str() const
 {
     return "{" + m_body + "}";

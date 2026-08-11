@@ -21,6 +21,13 @@ public:
      */
     bool increment(std::string_view key, std::string_view field, uint64_t value) override;
 
+    /**
+     * Queues one ZINCRBY into the same batch, so a board commits with its counters.
+     *
+     * @return false when the connection is gone or the command was refused
+     */
+    bool rank(std::string_view board, std::string_view member, uint64_t value) override;
+
     /* Closes the batch with an EXEC and reads the replies, leaving the pipeline empty */
     bool flush() override;
 

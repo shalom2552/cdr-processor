@@ -23,8 +23,8 @@ over an API.
 - [x] Phase 2 — Ingest
 - [x] Phase 3 — Aggregation Engine
 - [x] Phase 4 — Query Gateway
-- [ ] Phase 5 — Persistence
-- [ ] Phase 6 — Distribution & Clients
+- [x] Phase 5 — Persistence
+- [x] Phase 6 — Distribution & Clients
 - [ ] Phase 7 — Hardening & Deliverables
 
 ---
@@ -164,6 +164,8 @@ Both modes read the same store.
 port        = 8080      # http port the query api listens on
 host        = "0.0.0.0" # address the gateway binds
 concurrency = 4         # handler threads, 0 for max
+max_hops    = 6         # hops a path search covers before it gives up
+max_visited = 10000     # subscribers a path search reads before it gives up
 ```
 
 A request holds one handler thread for as long as its lookup takes.
@@ -183,16 +185,28 @@ docker exec redis redis-cli hgetall total:proc            # the run totals, all 
 docker exec redis redis-cli --scan --pattern 'sub:*'      # the subscriber keys
 docker exec redis redis-cli hgetall sub:972500000001      # one subscriber's counters
 docker exec redis redis-cli info keyspace                 # how many keys are there at all
+docker exec redis redis-cli zrevrange top:voice 0 9 withscores   # the top ten by call seconds
 ```
 
-Four kinds of key, each one hash:
+Four kinds of hash:
 
 | Key | Fields |
 | --- | --- |
 | `sub:<msisdn>` | `voice_out` `voice_in` `data_rx` `data_tx` `sms_out` `sms_in` `noans` `busy` `failed` |
 | `op:<mccmnc>` | `voice_out` `voice_in` `sms_out` `sms_in` |
-| `link:<owner>` | `<peer>:dur` and `<peer>:sms`, one pair per peer |
+| `link:<owner>` | `<peer>:dur`, `<peer>:cnt` and `<peer>:sms`, one set per peer |
 | `total:proc` | the fourteen totals fields |
+
+Six sorted sets, written with the hashes in the same transaction:
+
+| Key | Members | Score |
+| --- | --- | --- |
+| `top:voice` | subscribers | call seconds, out and in together |
+| `top:sms` | subscribers | messages, out and in together |
+| `top:data` | subscribers | bytes, rx and tx together |
+| `top:fail` | subscribers | no-answer, busy and failed together |
+| `top:op-voice` | operators | call seconds |
+| `top:op-sms` | operators | messages |
 
 ### Query API
 
@@ -204,16 +218,39 @@ curl localhost:8080/query/operator/42502                     # one operator's tr
 curl localhost:8080/query/link/972500000001                  # every peer of one subscriber
 curl localhost:8080/query/link/972500000001/972500000002     # what one pair exchanged
 curl localhost:8080/query/path/972500000001/972500000009     # the subscribers between two
+curl localhost:8080/query/health                             # store state, key count, bounds
+curl localhost:8080/query/totals                             # the store's lifetime counters
+curl localhost:8080/query/top/voice                          # the highest ranked subscribers
 ```
 
-Every answer is JSON. Parameters are digits only, anything else matches no route.
+Optional parameters on the three listing routes:
+
+```bash
+curl 'localhost:8080/query/link/972500000001?weights=1&sort=dur&limit=20&offset=0'
+curl 'localhost:8080/query/path/972500000001/972500000009?weights=1'
+curl 'localhost:8080/query/top/data?limit=50&offset=0'
+```
+
+| Parameter | Routes | Default | Meaning |
+| --- | --- | --- | --- |
+| `weights` | link, path | `0` | `1` adds what each peer or hop carried |
+| `sort` | link | `dur` | `dur` or `sms`, the metric peers are ordered by |
+| `limit` | link, top | `100`, `20` | entries returned, capped at `1000` and `500` |
+| `offset` | link, top | `0` | entries skipped |
+
+Boards for `/query/top/{board}`: `voice`, `sms`, `data`, `fail` rank subscribers,
+`op-voice` and `op-sms` rank operators.
+
 
 | Status | When |
 | --- | --- |
 | 200 | answered |
+| 400 | a query parameter was refused, or no such board |
 | 404 | never seen, or no such route |
 | 500 | the handler threw |
 | 503 | the store could not be reached |
+
+`/query/health` never 503s, and `/query/totals` and `/query/top` never 404.
 
 ### RabbitMQ
 
@@ -234,6 +271,51 @@ python3 scripts/consume.py
 
 ---
 
+## Client Web UI
+
+A read-only client over the gateway. It writes nothing.
+
+```bash
+make query                  # the gateway, on the host
+docker compose up -d ui     # the ui, in docker
+```
+
+Web UI: <http://127.0.0.1:8000>.
+
+```toml
+[ui]
+gateway_host    = "127.0.0.1" # address the gateway is reached at
+api_port        = 8000        # port the ui backend listens on
+sample_interval = 5           # seconds between polls of the gateway's totals
+```
+
+The container runs on the host network, so `127.0.0.1` holds either way.
+
+| Screen | What it answers |
+| --- | --- |
+| Dashboard | what the store holds, and what is moving right now |
+| Subscriber | one number's counters and its peers |
+| Rankings | the heaviest, off the six boards |
+| Graph | the contact graph around one subscriber, expandable |
+| Path | the subscribers between two numbers |
+| Operator | one MCCMNC, and its share of the store |
+| Config | `config.toml` by section, live sections marked |
+| System | gateway, store, sampler, and every route's last status |
+| Settings | this browser's paging, graph and theme settings |
+
+Every total is lifetime, since the store was created. The rates come from a sampler polling
+the gateway into SQLite, so history starts when the ui does.
+
+Outside docker, with node and the backend bare:
+
+```bash
+scripts/ui.sh               # backend, and vite
+```
+
+Web UI: <http://127.0.0.1:5173>, proxying `/api` to the backend.
+
+---
+
 ## Make Targets
 
 | Target | What it does |
@@ -250,32 +332,37 @@ python3 scripts/consume.py
 
 ## Docker
 
-Redis and RabbitMQ come from `docker-compose.yml`, their data on named volumes.
+Redis, RabbitMQ and the ui come from `docker-compose.yml`, their data on named volumes.
 
 | Command | What it does |
 | --- | --- |
-| `docker compose up -d` | starts both |
+| `docker compose up -d` | starts all three |
 | `docker compose up -d redis` | starts redis alone |
-| `docker compose ps` | shows both, wait until healthy |
-| `docker compose down` | stops both, the data stays |
-| `docker compose down -v` | stops both and wipes the volumes |
+| `docker compose up -d ui` | builds and starts the ui |
+| `docker compose ps` | shows them, wait until healthy |
+| `docker compose down` | stops them, the data stays |
+| `docker compose down -v` | stops them and wipes the volumes |
 
 ## Project Structure
 
 ```
 inc/            headers, mirrors src/
 src/
-  aggregate/    fold records into counters, write them as hashes
+  aggregate/    fold records into counters, write them as hashes and boards
   ingest/       drive work into records: dir watcher, thread pool, per-mode ingestors
   parser/       one CDR line into a CdrRecord
-  query/        read side: query store, service, HTTP gateway
+  query/        read side: query store, params, links, HTTP gateway
+    services/   what the routes answer from: entity, path, stats, rank
   sink/         far end of ingestion: aggregate, then write
   source/       yields batches of records from a file or a queue
-  store/        write side: Redis connection and hash writes
+  store/        write side: Redis connection, hash and board writes
   util/         no app coupling: fs, json, mmap, signals, thread pool
 tests/          mirrors src/, one file per class
 docs/           this file, HL_Design, DL_Design, Roadmap
 generator/      python CDR generator
+ui/
+  api/          FastAPI backend: proxy, sampler, sqlite
+  web/          React web app, built by vite
 scripts/        helper scripts
 third_party/    vendored: rabbitmq-c, hiredis, tomlplusplus, doctest, pika
 records/        input, done and failed directories at runtime

@@ -16,6 +16,7 @@ classDiagram
         +resume_at(std::string_view source) uint64_t
         +snapshot() [const] Totals
         -m_aggregator : Aggregator
+        -m_ranks : RankWriter
         -m_store : std::unique_ptr&lt;IStore&gt;
         -m_totals : RunTotals
         -m_writer : AggregateWriter

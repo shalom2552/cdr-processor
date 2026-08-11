@@ -73,6 +73,9 @@ bool AggregateWriter::write(const Delta& delta)
         field.resize(peerEnd);
         field.append(kFieldSmsSuffix);
         ok = add(key, field, edge.sms) && ok;
+        field.resize(peerEnd);
+        field.append(kFieldCntSuffix);
+        ok = add(key, field, edge.cnt) && ok;
     }
 
     if (!m_store.flush() || !ok) {

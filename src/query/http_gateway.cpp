@@ -1,7 +1,9 @@
 #include "query/http_gateway.hpp"
 
+#include "query/query_params.hpp"
 #include "util/json.hpp"
 #include "config.hpp"
+#include "constants.hpp"
 #include "logger.hpp"
 
 #include "httplib.h"
@@ -13,14 +15,17 @@ static constexpr std::string_view kComponent = "HttpGateway";
 namespace cdrp {
 
 /* Send one result as the response */
-static void send(httplib::Response& res, QueryService::Result result)
+static void send(httplib::Response& res, Result result)
 {
     res.status = result.status;
     res.set_content(std::move(result.body), "application/json");
 }
 
-HttpGateway::HttpGateway(const QueryService& service, const int port, std::string host)
-    : m_service(service)
+HttpGateway::HttpGateway(const IQueryStore& store, const int port, std::string host)
+    : m_service(store)
+    , m_paths(store)
+    , m_stats(store)
+    , m_ranks(store)
     , m_port(port)
     , m_host(std::move(host))
     , m_server(std::make_unique<httplib::Server>())
@@ -34,30 +39,9 @@ HttpGateway::HttpGateway(const QueryService& service, const int port, std::strin
         httplib::set_socket_opt(sock, SOL_SOCKET, SO_REUSEADDR, 1);
     });
 
-    m_server->Get(R"(/query/msisdn/(\d+))", [this](const httplib::Request& req,
-                                                   httplib::Response& res) {
-        send(res, m_service.msisdn(req.matches[1].str()));
-    });
-
-    m_server->Get(R"(/query/operator/(\d+))", [this](const httplib::Request& req,
-                                                     httplib::Response& res) {
-        send(res, m_service.op(req.matches[1].str()));
-    });
-
-    m_server->Get(R"(/query/link/(\d+))", [this](const httplib::Request& req,
-                                                 httplib::Response& res) {
-        send(res, m_service.peers(req.matches[1].str()));
-    });
-
-    m_server->Get(R"(/query/link/(\d+)/(\d+))", [this](const httplib::Request& req,
-                                                       httplib::Response& res) {
-        send(res, m_service.link(req.matches[1].str(), req.matches[2].str()));
-    });
-
-    m_server->Get(R"(/query/path/(\d+)/(\d+))", [this](const httplib::Request& req,
-                                                       httplib::Response& res) {
-        send(res, m_service.path(req.matches[1].str(), req.matches[2].str()));
-    });
+    registerQueryRoutes();
+    registerStatsRoutes();
+    registerRankRoutes();
 
     m_server->set_error_handler([](const httplib::Request&, httplib::Response& res) {
         if (res.body.empty()) {
@@ -65,8 +49,7 @@ HttpGateway::HttpGateway(const QueryService& service, const int port, std::strin
         }
     });
 
-    m_server->set_exception_handler([](const httplib::Request& req,
-                                       httplib::Response& res, std::exception_ptr) {
+    m_server->set_exception_handler([](const httplib::Request& req, httplib::Response& res, std::exception_ptr) {
         logWarn(kComponent, "handler threw on " + req.path);
         res.status = 500;
         res.set_content(Json::error("internal error"), "application/json");
@@ -74,6 +57,65 @@ HttpGateway::HttpGateway(const QueryService& service, const int port, std::strin
 
     m_server->set_logger([](const httplib::Request& req, const httplib::Response& res) {
         logInfo(kComponent, req.method + " " + req.path + " -> " + std::to_string(res.status));
+    });
+}
+
+void HttpGateway::registerQueryRoutes()
+{
+    m_server->Get(R"(/query/msisdn/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        send(res, m_service.msisdn(req.matches[1].str()));
+    });
+
+    m_server->Get(R"(/query/operator/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        send(res, m_service.op(req.matches[1].str()));
+    });
+
+    m_server->Get(R"(/query/link/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        QueryParams params;
+        const Result refused = parseParams(req, kPeerLimit, kPeerLimitMax, params);
+        if (refused.status != 200) {
+            send(res, refused);
+            return;
+        }
+        send(res, m_service.peers(req.matches[1].str(), params));
+    });
+
+    m_server->Get(R"(/query/link/(\d+)/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        send(res, m_service.link(req.matches[1].str(), req.matches[2].str()));
+    });
+
+    m_server->Get(R"(/query/path/(\d+)/(\d+))", [this](const httplib::Request& req, httplib::Response& res) {
+        QueryParams params;
+        const Result refused = parseParams(req, kPeerLimit, kPeerLimitMax, params);
+        if (refused.status != 200) {
+            send(res, refused);
+            return;
+        }
+        send(res, m_paths.path(req.matches[1].str(), req.matches[2].str(), params.weights));
+    });
+}
+
+void HttpGateway::registerStatsRoutes()
+{
+    m_server->Get("/query/health", [this](const httplib::Request&, httplib::Response& res) {
+        send(res, m_stats.health());
+    });
+
+    m_server->Get("/query/totals", [this](const httplib::Request&, httplib::Response& res) {
+        send(res, m_stats.totals());
+    });
+}
+
+void HttpGateway::registerRankRoutes()
+{
+    m_server->Get(R"(/query/top/([a-z-]+))", [this](const httplib::Request& req, httplib::Response& res) {
+        QueryParams params;
+        const Result refused = parseParams(req, kTopLimit, kTopLimitMax, params);
+        if (refused.status != 200) {
+            send(res, refused);
+            return;
+        }
+        send(res, m_ranks.top(req.matches[1].str(), params));
     });
 }
 

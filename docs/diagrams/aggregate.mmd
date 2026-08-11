@@ -94,6 +94,14 @@ classDiagram
         +write(const Totals & totals) bool
         -m_store : IStore &
     }
+    class C_0013992063804294937841["RankWriter"]
+    class C_0013992063804294937841 {
+        +RankWriter(IStore & store) void
+        -add(std::string_view board, std::string_view member, uint64_t value) bool
+        -appendNumber(std::string & out, uint64_t value) void$
+        +write(const Delta & delta) bool
+        -m_store : IStore &
+    }
     C_0006421422352653742808 ..> C_0006168100238794423074 : 
     C_0008391949454572926139 o-- C_0010887478950944287678 : +subs
     C_0008391949454572926139 o-- C_0017794246012153393637 : +ops
@@ -106,6 +114,7 @@ classDiagram
     C_0005203435245187721673 ..> C_0009640744578029682106 : 
     C_0001003986061494381294 ..> C_0008391949454572926139 : 
     C_0001003986061494381294 ..> C_0009640744578029682106 : 
+    C_0013992063804294937841 ..> C_0008391949454572926139 : 
 
 %% Generated with clang-uml, version 0.0.0-unknown
 %% LLVM version clang version 22.1.8

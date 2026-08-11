@@ -347,6 +347,28 @@ TEST_CASE("fold_adds_repeated_contacts_into_one_link")
     CHECK(link(delta, kPeerMsisdn, kMsisdn).sms == 2);
 }
 
+TEST_CASE("fold_counts_one_call_on_both_legs_of_a_link")
+{
+    const Aggregator aggregator;
+    Delta delta;
+
+    aggregator.fold({ makeRecord(UsageType::MOC, 10), makeRecord(UsageType::MTC, 5) }, delta);
+
+    CHECK(link(delta, kMsisdn, kPeerMsisdn).cnt == 2);
+    CHECK(link(delta, kPeerMsisdn, kMsisdn).cnt == 2);
+}
+
+TEST_CASE("fold_counts_no_call_for_a_message")
+{
+    const Aggregator aggregator;
+    Delta delta;
+
+    aggregator.fold({ makeRecord(UsageType::SMS_MO), makeRecord(UsageType::SMS_MT) }, delta);
+
+    CHECK(link(delta, kMsisdn, kPeerMsisdn).sms == 2);
+    CHECK(link(delta, kMsisdn, kPeerMsisdn).cnt == 0);
+}
+
 TEST_CASE("fold_gives_the_same_answer_for_the_same_batch")
 {
     const Aggregator aggregator;

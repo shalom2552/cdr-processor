@@ -23,8 +23,9 @@ public:
     void fold(const std::vector<CdrRecord>& batch, Delta& out) const;
 
 private:
-    /* Adds dur and sms to both a to b and b to a, nothing when b is 0 */
-    static void addLink(LinkMap& links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms);
+    /* Adds what one record carried to both a to b and b to a, nothing when b is 0 */
+    static void addLink(LinkMap& links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms,
+                        uint64_t cnt);
 };
 
 } // namespace cdrp
