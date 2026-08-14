@@ -12,20 +12,21 @@
 
 # CDR Processor
 
-A distributed C++ system for processing telecom Charging Data Records.
-Ingests multi-GB CDR files in parallel, aggregates them exposes the results
+A distributed C++ system for processing Call Detail Records ([CDR](https://en.wikipedia.org/wiki/Call_detail_record)).
+Ingests stream or multi-GB CDR files in parallel, aggregates them and exposes the results
 over an API.
 
 ## RoadMap
 
-- [x] Phase 0 — Skeleton
-- [x] Phase 1 — Core Infrastructure
-- [x] Phase 2 — Ingest
-- [x] Phase 3 — Aggregation Engine
-- [x] Phase 4 — Query Gateway
-- [x] Phase 5 — Persistence
-- [x] Phase 6 — Distribution & Clients
-- [ ] Phase 7 — Hardening & Deliverables
+- [x] Phase 0 - Skeleton
+- [x] Phase 1 - Core Infrastructure
+- [x] Phase 2 - Ingest
+- [x] Phase 3 - Aggregation Engine
+- [x] Phase 4 - Query Gateway
+- [x] Phase 5 - Persistence
+- [x] Phase 6 - Distribution & Clients
+- [ ] Phase 7 - Hardening & Deliverables
+- [ ] Readme  - Add tools and features
 
 ---
 
