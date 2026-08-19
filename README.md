@@ -12,23 +12,46 @@
 
 # CDR Processor
 
-A distributed C++ system for processing Call Detail Records ([CDR](https://en.wikipedia.org/wiki/Call_detail_record)).
-Ingests stream or multi-GB CDR files in parallel, aggregates them and exposes the results
-over an API.
+A distributed C++ system for processing Call Detail Records
+([CDR](https://en.wikipedia.org/wiki/Call_detail_record)), the metadata records a mobile
+network writes for every call, message and data session.
 
-## RoadMap
+It ingests multi-GB CDR files or a live RabbitMQ stream in parallel, folds them into
+per-subscriber, per-operator and contact-graph counters in Redis, and answers questions
+about them over an HTTP API and a web UI.
 
-- [x] Phase 0 - Skeleton
-- [x] Phase 1 - Core Infrastructure
-- [x] Phase 2 - Ingest
-- [x] Phase 3 - Aggregation Engine
-- [x] Phase 4 - Query Gateway
-- [x] Phase 5 - Persistence
-- [x] Phase 6 - Distribution & Clients
-- [ ] Phase 7 - Hardening & Deliverables
-- [ ] Readme  - Add tools and features
+## Features
 
----
+- **Two ingest modes, one pipeline.** Files or RabbitMQ, picked in `config.toml`.
+- **Never loads a whole file.** Memory mapped, read in batches, one reader thread each.
+- **Crash safe.** Files walk `ready` to `.processing` to `done`, progress kept in Redis.
+- **Lock-free aggregation.** Each thread folds its batch into a private `Delta`.
+- **Pipelined Redis writes.** Counters, links and boards go out in batched transactions.
+- **A contact graph, not just totals.** Per-peer duration, calls and messages, walked by BFS.
+- **Six leaderboards.** Sorted sets, written in the same transaction as their counters.
+- **A read-only web UI.** Nine screens over the query API, with live rates.
+- **Nothing to install.** Every dependency is vendored under `third_party/`.
+
+## Tools
+
+| Tool | Used for |
+| --- | --- |
+| C++17 | processor and query gateway, both binaries out of one `src/` |
+| Make | the whole C++ build, including the vendored C libraries |
+| Redis 7 | counters, contact graph, leaderboards, run totals |
+| RabbitMQ 3 / AMQP 0-9-1 | the streaming ingest mode |
+| hiredis | Redis client, one connection per thread |
+| rabbitmq-c | AMQP client, one connection per consumer |
+| cpp-httplib | the embedded HTTP server behind the query API |
+| tomlplusplus | `config.toml`, parsed and validated once at startup |
+| doctest | unit tests, one file per class |
+| Python 3.11 | the synthetic CDR generator |
+| pika | the generator's AMQP publisher |
+| FastAPI | the UI backend: gateway proxy and sampler |
+| SQLite | the sampler's history, so the UI can draw rates |
+| React, TypeScript, Vite | the web app |
+| Docker Compose | Redis, RabbitMQ and the UI |
+| GitHub Actions | build and test on every push |
 
 ## Prerequisites
 
@@ -36,24 +59,17 @@ over an API.
 - `python3.11` or newer for the generator
 - `docker` and `docker compose`
 
-Every library is vendored under `third_party/`: rabbitmq-c, hiredis, tomlplusplus and
-doctest for the C++ side, pika for the generator. Nothing else to install.
+Every library is vendored under `third_party/`: rabbitmq-c, hiredis, tomlplusplus,
+cpp-httplib and doctest for the C++ side, pika for the generator. Nothing else to install.
 
 ## Build
 
-Build the processor:
-
 ```bash
-make build
+make build                  # build the processor
+docker compose up -d redis  # start the store
 ```
 
-Start the Redis DB:
-
-```bash
-docker compose up -d redis
-```
-
-For rabbit mode, also:
+For rabbit mode, set `[source] mode = "rabbit"` in `config.toml` and also:
 
 ```bash
 docker compose up -d rabbit
@@ -61,22 +77,16 @@ docker compose up -d rabbit
 
 ## Run
 
-Generate records:
-
 ```bash
-make gen
+make gen                    # terminal 1, generate records
+make run                    # terminal 2, process them
+make query                  # terminal 3, serve the query api
 ```
 
-Run the processor (second terminal):
+Then:
 
 ```bash
-make run
-```
-
-Run the query gateway (third terminal):
-
-```bash
-make query
+curl localhost:8080/query/totals
 ```
 
 Stop any of them with `Ctrl-C`.
@@ -89,9 +99,43 @@ make test
 
 ---
 
+## The Records
+
+12-field CSV line, one record per line, separator from `config.toml`:
+
+```
+seq | imsi | imei | usage | msisdn | date | time | duration | bytes_rx | bytes_tx | peer_imsi | peer_msisdn
+```
+
+Usage codes:
+
+| Code | Meaning |
+| --- | --- |
+| `MOC` | mobile originating call, an outgoing voice call |
+| `MTC` | mobile terminating call, an incoming voice call |
+| `SMS-MO` | mobile originated message, outgoing |
+| `SMS-MT` | mobile terminated message, incoming |
+| `D` | data session |
+| `U` | call not answered |
+| `B` | called party busy |
+| `X` | call failed |
+
+Identifiers:
+
+| Term | What it is |
+| --- | --- |
+| [MSISDN](https://en.wikipedia.org/wiki/MSISDN) | the dialable number, what a subscriber is keyed by |
+| IMSI | identifies the SIM, 15 digits: MCC, MNC, MSIN |
+| IMEI | identifies the handset, not aggregated |
+| [MCCMNC](https://en.wikipedia.org/wiki/Public_land_mobile_network) | country code plus network code, names one operator |
+
+Operator id is the IMSI without its last ten digits.
+
+---
+
 ## Configuration
 
-`config.toml` at the project root:
+Everything lives in `config.toml` at the project root:
 
 ```toml
 [log]
@@ -111,11 +155,11 @@ separator = "|"         # one character separating the record fields
 
 ```toml
 [source.file]
-readers     = 4                     # reader threads, 0 for one per core
 ready_dir   = "records/ready/"      # the generator drops .cdr files here
 process_dir = "records/.processing" # claimed files, one per reader
 done_dir    = "records/done"        # drained files
 fail_dir    = "records/failed"      # files that did not parse
+readers     = 4                     # reader threads, 0 for one per core
 ```
 
 Paths are relative to the project root.
@@ -136,7 +180,7 @@ Both sides read `queue`.
 ```toml
 [generator]
 rotate_seconds = 600    # seconds of records per .cdr file, file mode only
-gen_interval   = 0.001  # seconds between records
+gen_interval   = 0.001  # seconds between records, 0 for full speed
 subscribers    = 100000 # subscriber pool size, 2 or more
 ```
 
@@ -147,9 +191,7 @@ The generator feeds either mode.
 ```toml
 [store]
 type = "redis"          # redis is the only supported store
-```
 
-```toml
 [redis]
 host       = "127.0.0.1" # redis server address
 port       = 6379        # redis server port
@@ -175,41 +217,7 @@ Everything that is not configurable lives in `inc/constants.hpp`.
 
 ---
 
-## Inspecting
-
-### Redis
-
-Inspect redis with `redis-cli`:
-
-```bash
-docker exec redis redis-cli hgetall total:proc            # the run totals, all 14 fields
-docker exec redis redis-cli --scan --pattern 'sub:*'      # the subscriber keys
-docker exec redis redis-cli hgetall sub:972500000001      # one subscriber's counters
-docker exec redis redis-cli info keyspace                 # how many keys are there at all
-docker exec redis redis-cli zrevrange top:voice 0 9 withscores   # the top ten by call seconds
-```
-
-Four kinds of hash:
-
-| Key | Fields |
-| --- | --- |
-| `sub:<msisdn>` | `voice_out` `voice_in` `data_rx` `data_tx` `sms_out` `sms_in` `noans` `busy` `failed` |
-| `op:<mccmnc>` | `voice_out` `voice_in` `sms_out` `sms_in` |
-| `link:<owner>` | `<peer>:dur`, `<peer>:cnt` and `<peer>:sms`, one set per peer |
-| `total:proc` | the fourteen totals fields |
-
-Six sorted sets, written with the hashes in the same transaction:
-
-| Key | Members | Score |
-| --- | --- | --- |
-| `top:voice` | subscribers | call seconds, out and in together |
-| `top:sms` | subscribers | messages, out and in together |
-| `top:data` | subscribers | bytes, rx and tx together |
-| `top:fail` | subscribers | no-answer, busy and failed together |
-| `top:op-voice` | operators | call seconds |
-| `top:op-sms` | operators | messages |
-
-### Query API
+## Query API
 
 With `make query` running, on `[query] port`:
 
@@ -242,7 +250,6 @@ curl 'localhost:8080/query/top/data?limit=50&offset=0'
 Boards for `/query/top/{board}`: `voice`, `sms`, `data`, `fail` rank subscribers,
 `op-voice` and `op-sms` rank operators.
 
-
 | Status | When |
 | --- | --- |
 | 200 | answered |
@@ -252,23 +259,6 @@ Boards for `/query/top/{board}`: `voice`, `sms`, `data`, `fail` rank subscribers
 | 503 | the store could not be reached |
 
 `/query/health` never 503s, and `/query/totals` and `/query/top` never 404.
-
-### RabbitMQ
-
-What's in the queues:
-
-```bash
-docker exec rabbit rabbitmqctl list_queues            # queues, and what is waiting in them
-docker compose logs -f rabbit                         # broker log
-```
-
-Web UI: <http://localhost:15672>, user `guest`, password `guest`.
-
-To drains the queue and print it:
-
-```bash
-python3 scripts/consume.py
-```
 
 ---
 
@@ -305,7 +295,7 @@ The container runs on the host network, so `127.0.0.1` holds either way.
 | Settings | this browser's paging, graph and theme settings |
 
 Every total is lifetime, since the store was created. The rates come from a sampler polling
-the gateway into SQLite, so history starts when the ui does.
+the gateway into SQLite, so history starts when the UI does.
 
 Outside docker, with node and the backend bare:
 
@@ -314,6 +304,59 @@ scripts/ui.sh               # backend, and vite
 ```
 
 Web UI: <http://127.0.0.1:5173>, proxying `/api` to the backend.
+
+---
+
+## Inspecting
+
+### Redis
+
+Inspect redis with `redis-cli`:
+
+```bash
+docker exec redis redis-cli hgetall total:proc                  # the run totals, all 14 fields
+docker exec redis redis-cli --scan --pattern 'sub:*'            # the subscriber keys
+docker exec redis redis-cli hgetall sub:972500000001            # one subscriber's counters
+docker exec redis redis-cli info keyspace                       # how many keys are there at all
+docker exec redis redis-cli zrevrange top:voice 0 9 withscores  # the top ten by call seconds
+```
+
+Four kinds of hash:
+
+| Key | Fields |
+| --- | --- |
+| `sub:<msisdn>` | `voice_out` `voice_in` `data_rx` `data_tx` `sms_out` `sms_in` `noans` `busy` `failed` |
+| `op:<mccmnc>` | `voice_out` `voice_in` `sms_out` `sms_in` |
+| `link:<owner>` | `<peer>:dur`, `<peer>:cnt` and `<peer>:sms`, one set per peer |
+| `total:proc` | the fourteen totals fields |
+
+Six sorted sets, written with the hashes in the same transaction:
+
+| Key | Members | Score |
+| --- | --- | --- |
+| `top:voice` | subscribers | call seconds, out and in together |
+| `top:sms` | subscribers | messages, out and in together |
+| `top:data` | subscribers | bytes, rx and tx together |
+| `top:fail` | subscribers | no-answer, busy and failed together |
+| `top:op-voice` | operators | call seconds |
+| `top:op-sms` | operators | messages |
+
+### RabbitMQ
+
+What's in the queues:
+
+```bash
+docker exec rabbit rabbitmqctl list_queues            # queues, and what is waiting in them
+docker compose logs -f rabbit                         # broker log
+```
+
+Management UI: <http://localhost:15672>, user `guest`, password `guest`.
+
+To drain the queue and print it:
+
+```bash
+python3 scripts/consume.py
+```
 
 ---
 
@@ -330,10 +373,9 @@ Web UI: <http://127.0.0.1:5173>, proxying `/api` to the backend.
 | `make release` | builds with `-O2 -DNDEBUG` |
 | `make clean` | removes `build/` |
 
-
 ## Docker
 
-Redis, RabbitMQ and the ui come from `docker-compose.yml`, their data on named volumes.
+Redis, RabbitMQ and the UI come from `docker-compose.yml`, their data on named volumes.
 
 | Command | What it does |
 | --- | --- |
@@ -359,7 +401,7 @@ src/
   store/        write side: Redis connection, hash and board writes
   util/         no app coupling: fs, json, mmap, signals, thread pool
 tests/          mirrors src/, one file per class
-docs/           this file, HL_Design, DL_Design, Roadmap
+docs/           HL_Design, DL_Design, Class_Diagrams, Roadmap
 generator/      python CDR generator
 ui/
   api/          FastAPI backend: proxy, sampler, sqlite
@@ -375,4 +417,4 @@ Everything else links into both.
 
 ## License
 
-MIT, see [LICENSE](../LICENSE), and `third_party/` for the vendored ones.
+MIT, see [LICENSE](LICENSE), and `third_party/` for the vendored ones.
