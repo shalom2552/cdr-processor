@@ -14,5 +14,5 @@ COPY --from=web /web/dist web/dist
 
 ENV CDR_CONFIG=/app/config.toml
 ENV UI_HOST=0.0.0.0
-EXPOSE 8000
+EXPOSE 8001
 CMD ["python", "api/main.py"]

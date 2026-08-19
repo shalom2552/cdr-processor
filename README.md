@@ -20,6 +20,11 @@ It ingests multi-GB CDR files or a live RabbitMQ stream in parallel, folds them 
 per-subscriber, per-operator and contact-graph counters in Redis, and answers questions
 about them over an HTTP API and a web UI.
 
+| | |
+| --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Graph](docs/screenshots/graph.png) |
+| ![Rankings](docs/screenshots/rankings.png) | ![Subscriber](docs/screenshots/subscriber.png) |
+
 ## Features
 
 - **Two ingest modes, one pipeline.** Files or RabbitMQ, picked in `config.toml`.
@@ -271,12 +276,12 @@ make query                  # the gateway, on the host
 docker compose up -d ui     # the ui, in docker
 ```
 
-Web UI: <http://127.0.0.1:8000>.
+Web UI: <http://127.0.0.1:8001>.
 
 ```toml
 [ui]
 gateway_host    = "127.0.0.1" # address the gateway is reached at
-api_port        = 8000        # port the ui backend listens on
+api_port        = 8001        # port the ui backend listens on
 sample_interval = 5           # seconds between polls of the gateway's totals
 ```
 
