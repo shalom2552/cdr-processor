@@ -28,9 +28,9 @@ public:
     ~RabbitIngestor() override;
 
     /**
-     * Opens one connection per configured consumer and starts a thread on each.
-     * False if the format has no parser or no connection could be opened; the
-     * ingestor stays stopped.
+     * Starts one thread per configured consumer, each connecting on its own.
+     * False if the format has no parser; the ingestor stays stopped. A broker
+     * that is not up yet is not a failure, the consumers keep retrying.
      *
      * @return true once the consumers are running
      */
@@ -40,8 +40,11 @@ public:
     void stop() override;
 
 private:
-    /* Consume, parse and ack batches on connection id until stopped */
+    /* Connect, consume, parse and ack batches on connection id until stopped */
     void consume(std::size_t id);
+
+    /* Wait out a backoff in short slices, returning as soon as stop() was called */
+    void backoff(unsigned delay_ms);
 
 private:
     std::string m_format;

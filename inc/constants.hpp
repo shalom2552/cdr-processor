@@ -26,11 +26,18 @@ static constexpr size_t kRabbitBatchSize = kBatchSize;
 inline constexpr std::size_t kRabbitPrefetch  = 2 * kRabbitBatchSize;
 static_assert(kRabbitPrefetch <= UINT16_MAX, "amqp_basic_qos prefetch_count is uint16_t");
 
+// rabbit reconnect, doubling from min to max after a lost connection
+inline constexpr unsigned kRabbitBackoffMinMs = 250;
+inline constexpr unsigned kRabbitBackoffMaxMs = 10000;
+inline constexpr unsigned kRabbitBackoffSliceMs = 100; // longest a backoff delays a stop
+
 // aggregate
 inline constexpr uint64_t kMsinDivisor = 10'000'000'000ULL; // strips MSIN, leaves MCCMNC
 
 // redis store
 inline constexpr std::size_t kRedisPipelineDepth = 1024; // commands queued before a drain
+inline constexpr unsigned kRedisBackoffMinMs = 100;      // reconnect wait, doubles to max
+inline constexpr unsigned kRedisBackoffMaxMs = 5000;
 
 // aggregate keys
 inline constexpr std::string_view kSubPrefix = "sub:";

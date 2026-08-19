@@ -6,12 +6,14 @@
 #include "source/icdr_source.hpp"
 #include "source/rabbit_conn.hpp"
 #include "source/rabbit_source.hpp"
+#include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
+#include <thread>
 #include <vector>
 
 constexpr std::string_view kComponent = "RabbitIngestor";
@@ -42,17 +44,7 @@ bool RabbitIngestor::start()
 
     m_conns.reserve(cfg.rabbit.consumers);
     for (std::size_t i = 0; i < cfg.rabbit.consumers; ++i) {
-        auto connection = std::make_unique<RabbitConn>();
-        if (!connection->open(cfg.rabbit.url, cfg.rabbit.queue)) {
-            logWarn(kComponent, "consumer-" + std::to_string(i) + ": connect failed");
-            continue;
-        }
-        m_conns.push_back(std::move(connection));
-    }
-
-    if (m_conns.empty()) {
-        logError(kComponent, "no consumer could connect to " + cfg.rabbit.url);
-        return false;
+        m_conns.push_back(std::make_unique<RabbitConn>());
     }
 
     m_stop.store(false, std::memory_order_relaxed);
@@ -90,32 +82,68 @@ void RabbitIngestor::consume(std::size_t id)
     const std::string tag = "consumer " + std::to_string(id);
 
     RabbitConn& connection = *m_conns[id];
-    RabbitSource source(connection);
     std::vector<CdrRecord> batch;
     uint64_t total = 0;
+    uint64_t rejected = 0;
+    unsigned delay_ms = 0;
+    bool down = false;
 
     while (!m_stop.load(std::memory_order_relaxed)) {
-        const auto status = source.next(batch);
-
-        if (status == RabbitSource::Status::FAIL) {
-            logWarn(kComponent, tag + ": read failed, exiting");
-            break;
-        }
-        if (batch.empty()) {
+        if (!connection.open(cfg.rabbit.url, cfg.rabbit.queue)) {
+            delay_ms = delay_ms ? std::min(delay_ms * 2, kRabbitBackoffMaxMs) : kRabbitBackoffMinMs;
+            if (!down && id == 0) {
+                logWarn(kComponent, tag + ": connect to " + cfg.rabbit.url + " failed, retrying");
+            } else {
+                logDebug(kComponent, tag + ": connect failed, retry in " + std::to_string(delay_ms) + "ms");
+            }
+            down = true;
+            backoff(delay_ms);
             continue;
         }
 
-        logDebug(kComponent, tag + ": batch of " + std::to_string(batch.size()));
-        m_sink.consume(batch, ""); // the queue keeps no progress
-        total += batch.size();
-
-        if (!connection.ack(source.last_tag(), true)) {
-            logWarn(kComponent, tag + ": ack failed, exiting");
-            break;
+        if (down) {
+            logInfo(kComponent, tag + ": reconnected");
         }
+        delay_ms = 0;
+        down = false;
+
+        RabbitSource source(connection); // a fresh channel restarts the delivery tags
+
+        while (!m_stop.load(std::memory_order_relaxed)) {
+            const auto status = source.next(batch);
+
+            if (status == RabbitSource::Status::FAIL) {
+                logWarn(kComponent, tag + ": read failed, reconnecting");
+                break;
+            }
+            if (batch.empty()) {
+                continue;
+            }
+
+            logDebug(kComponent, tag + ": batch of " + std::to_string(batch.size()));
+            m_sink.consume(batch, ""); // the queue keeps no progress
+            total += batch.size();
+
+            if (!connection.ack(source.last_tag(), true)) {
+                logWarn(kComponent, tag + ": ack failed, reconnecting");
+                break;
+            }
+        }
+
+        rejected += source.rejected();
     }
 
-    logInfo(kComponent, tag + ": " + std::to_string(total) + " records, " + std::to_string(source.rejected()) + " rejected");
+    logInfo(kComponent, tag + ": " + std::to_string(total) + " records, " + std::to_string(rejected) + " rejected");
+}
+
+void RabbitIngestor::backoff(unsigned delay_ms)
+{
+    unsigned left = delay_ms;
+    while (left > 0 && !m_stop.load(std::memory_order_relaxed)) {
+        const unsigned slice = std::min(left, kRabbitBackoffSliceMs);
+        std::this_thread::sleep_for(std::chrono::milliseconds(slice));
+        left -= slice;
+    }
 }
 
 } // namespace cdrp
