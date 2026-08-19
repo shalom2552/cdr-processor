@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -163,10 +164,20 @@ TEST_CASE("redis_conn_hands_two_threads_two_contexts")
     }
     redisContext* first = nullptr;
     redisContext* second = nullptr;
+    std::atomic<int> holding { 0 };
 
-    std::thread one([&] { first = RedisConn::get(); });
+    // both threads hold their context at once, so a freed address cannot be reused
+    auto take = [&](redisContext*& out) {
+        out = RedisConn::get();
+        ++holding;
+        while (holding.load() < 2) {
+            std::this_thread::yield();
+        }
+    };
+
+    std::thread one([&] { take(first); });
+    std::thread two([&] { take(second); });
     one.join();
-    std::thread two([&] { second = RedisConn::get(); });
     two.join();
 
     CHECK(first != nullptr);
