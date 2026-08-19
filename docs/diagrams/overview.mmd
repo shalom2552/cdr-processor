@@ -37,11 +37,13 @@ classDiagram
     class C_0015551976288975165073["FileIngestor"]
     class C_0015551976288975165073 {
         +FileIngestor(ISink & sink) void
+        +FileIngestor(ISink & sink, const FileDirs & dirs) void
         -dispose(const std::string & file_path, bool ok) void
         -feed() void
         -process(const std::string & file_path) void
         +start() bool
         +stop() void
+        -m_dirs : FileDirs
         -m_feeder : std::thread
         -m_format : std::string
         -m_parser : std::unique_ptr&lt;IParser&gt;
@@ -54,6 +56,7 @@ classDiagram
     class C_0016309531056379409339["RabbitIngestor"]
     class C_0016309531056379409339 {
         +RabbitIngestor(ISink & sink) void
+        -backoff(unsigned int delay_ms) void
         -consume(std::size_t id) void
         +start() bool
         +stop() void
@@ -115,11 +118,6 @@ classDiagram
         +ops : OpMap
         +subs : SubMap
     }
-    class C_0000075638799718834364["Aggregator"]
-    class C_0000075638799718834364 {
-        -addLink(LinkMap & links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms) void$
-        +fold(const std::vector&lt;CdrRecord&gt; & batch, Delta & out) [const] void
-    }
     class C_0012987976901397680227["IStore"]
     class C_0012987976901397680227 {
         <<abstract>>
@@ -136,6 +134,11 @@ classDiagram
         +write(const Delta & delta) bool
         +write(const Totals & totals) bool
         -m_store : IStore &
+    }
+    class C_0000075638799718834364["Aggregator"]
+    class C_0000075638799718834364 {
+        -addLink(LinkMap & links, uint64_t a, uint64_t b, uint64_t dur, uint64_t sms, uint64_t cnt) void$
+        +fold(const std::vector&lt;CdrRecord&gt; & batch, Delta & out) [const] void
     }
     class C_0013992063804294937841["RankWriter"]
     class C_0013992063804294937841 {
@@ -256,10 +259,10 @@ classDiagram
     C_0010532161306050576947 <|-- C_0016628722800302877088 : 
     C_0015765625140678909184 ..> C_0004842097886665373725 : 
     C_0015450104558118286089 <|-- C_0015765625140678909184 : 
-    C_0000075638799718834364 ..> C_0004842097886665373725 : 
-    C_0000075638799718834364 ..> C_0008391949454572926139 : 
     C_0001003986061494381294 ..> C_0008391949454572926139 : 
     C_0001003986061494381294 --> C_0012987976901397680227 : -m_store
+    C_0000075638799718834364 ..> C_0004842097886665373725 : 
+    C_0000075638799718834364 ..> C_0008391949454572926139 : 
     C_0013992063804294937841 ..> C_0008391949454572926139 : 
     C_0013992063804294937841 --> C_0012987976901397680227 : -m_store
     C_0012987976901397680227 <|-- C_0009211040578075549081 : 

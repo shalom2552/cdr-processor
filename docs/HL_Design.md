@@ -1,16 +1,28 @@
 # High Level Design
 
-This document outlines the high-level design of this project.
-It provides an overview of the architecture, key components, and overall functionality.
+CDR Processor turns call detail records into counters that can be read while the records
+are still arriving. Records come from `.cdr` files on disk or from a RabbitMQ queue, are
+parsed, folded into per subscriber, per operator and per pair counters, and written to
+Redis as hashes and sorted sets. A second binary serves those counters over HTTP, and a
+web ui reads that HTTP api. Ranking and paging are paid once per batch on the way in, so a
+read is a lookup and never a scan.
 
 ## Architecture
 
-The project is structured as follows:
-- **Python Generator**: Generates CDR records.
-- **C++ Reducer/Digestor**: Processes and analyzes CDR records.
-- **Database**: Stores and retrieves processed data.
-- **API**: Provides access to the database.
+- **Python generator**: writes synthetic CDR records to the screen, to `.cdr` files, or to
+  a RabbitMQ queue. `generator/`.
+- **Processor**: reads records, folds them, writes the counters. `src/processor_main.cpp`,
+  built as `build/main`.
+- **Query gateway**: serves the counters over HTTP under `/query`.
+  `src/gateway_main.cpp`, built as `build/gateway`.
+- **Redis**: holds every counter, every board and the progress of every source.
+- **RabbitMQ**: the queue the records arrive on with `source.mode = "rabbit"`, unused in
+  file mode.
+- **UI backend**: FastAPI, one process. Proxies the gateway and samples it into SQLite.
+  `ui/api`.
+- **Web app**: React, reads the ui backend and nothing else. `ui/web`.
 
+Everything but the two mains links into both binaries.
 
 ### CDR Record
 
@@ -30,27 +42,18 @@ logged.
 builds one by name, or returns nothing when the name is unknown. The name comes from
 `config.toml`, so adding a format touches nothing that already works.
 
-### Config
-
-Parses `config.toml` once at startup, validates it, exposes it as the global `cfg`.
-Bad config throws.
-
-### Logger
-
-Level-filtered logging to stderr: timestamp, colored level tag, message.
-Level comes from `config.toml`. Thread-safe.
-
-### Thread Pool
-
-Fixed set of worker threads over a bounded task queue. `submit()` blocks while the
-queue is full, so a fast producer is slowed down instead of piling up memory. Tasks
-that throw are logged, not fatal. Shutdown drains the queue and joins the workers.
-
 ### Source
 
-`ICdrSource` hands out records a batch at a time and says when it is done. `FileSource`
-is the first one: it maps a `.cdr` file, checks the `CDR|<format>|<count>` header, and
-runs the lines through the parser. A queue source drops in behind the same interface.
+`ICdrSource` hands out records a batch at a time and says whether it is done or broken.
+`FileSource` and `RabbitSource` sit behind it, one per source mode, so the ingestor that
+drives a source names neither.
+
+### File Source
+
+Reads one `.cdr` file: maps it, checks the `CDR|<format>|<count>` header, and runs the
+lines through the parser. A file that will not map, is empty, or carries no header yields
+no records and reports itself failed. It is built with the sequence the store already
+holds, so a file picked back up after a crash starts past what already landed.
 
 ### Rabbit Conn
 
@@ -69,12 +72,17 @@ is done.
 
 ### Ingestor
 
-`IIngestor` starts and stops the flow of records from a source into a sink. `FileIngestor`
-drives the file path: a feeder thread claims files from the watcher and a thread pool reads
-each one through a `FileSource` into the sink. The parser is chosen once at startup, so a
-bad format is refused before any file moves. A worker asks the sink where the file resumes
-before opening it, so a file swept back up after a crash starts past what already landed.
-Drained files go to done, failures to failed.
+`IIngestor` starts and stops the flow of records from a source into a sink. `start()` says
+whether it began, `stop()` ends it and joins whatever it started. One implementation per
+source mode, so the mode is the only thing `main` reads.
+
+### File Ingestor
+
+`FileIngestor` drives the file path: a feeder thread claims files from the watcher and a
+thread pool reads each one through a `FileSource` into the sink. The parser is chosen once
+at startup, so a bad format is refused before any file moves. A worker asks the sink where
+the file resumes before opening it, so a file swept back up after a crash starts past what
+already landed. Drained files go to done, failures to failed.
 
 ### Ingestor Factory
 
@@ -85,9 +93,10 @@ running process. Adding a mode is a registration and a class behind `IIngestor`.
 ### Rabbit Ingestor
 
 `RabbitIngestor` drives the queue path: one connection and one `RabbitSource` per consumer
-thread, each parsing its own messages into the sink. Connections are opened before the
-threads run, so a broker that is down is refused at startup. A batch is acked in one call
-once its records are in the sink, and anything unacked is redelivered.
+thread, each parsing its own messages into the sink. A thread that cannot reach the broker
+waits and tries again, doubling the wait up to a cap, so a broker that is not up yet or
+restarts mid run costs a pause and not the run. A batch is acked in one call once its
+records are in the sink, and anything unacked is redelivered.
 
 ### Dir Watcher
 
@@ -133,12 +142,24 @@ once per batch at `O(log n)`, instead of by a scan on every read.
 ### Store
 
 `IStore` is a key and field counter store: add a value, add a board score, flush what was
-queued, and keep how far each source was applied so a reader can pick it back up.
-`RedisStore` is the first one, one hash per key and every increment an `HINCRBY`, every
-board score a `ZINCRBY`. Everything between two flushes goes out as one transaction, so a
-batch, its boards and the progress that describes it land together or not at all.
-`RedisConn` holds the connection under it, one per thread, so the write path takes no lock
-and a reader can share it.
+queued, and keep how far each source was applied so a reader can pick it back up. It carries
+keys, fields, numbers and a source name, nothing about records or aggregates, so the writers
+above it name no backend.
+
+### Redis Conn
+
+One Redis connection per thread, opened on first use and freed when the thread ends. A
+connect that fails backs that thread off, doubling the wait up to a cap, so a store that is
+down costs a retry rather than a stall. It knows nothing of commands, so the write side and
+the read side share it as it is.
+
+### Redis Store
+
+The first `IStore`: one hash per key, every increment an `HINCRBY`, every board score a
+`ZINCRBY`. Everything between two flushes goes out as one transaction, so a batch, its
+boards and the progress that describes it land together or not at all. Commands are
+pipelined, so a round trip is paid once per batch instead of once per counter, and each
+thread writes on its own connection under no lock.
 
 ### Store Factory
 
@@ -165,10 +186,15 @@ counting anything twice.
 ### Query Store
 
 `IQueryStore` is the read side of the same counters: every field of a key, the field names
-alone, the fields it is named, how many keys the store holds, and one page of a board.
-`RedisQuery` is the first one, one Redis read per call over the same `RedisConn` the writers
-use, a board page being a `ZCARD` and a `ZREVRANGE`. A key that does not exist reads as
-empty, and only an unreachable or rejecting server reads as a failure.
+alone, the fields it is named, how many keys the store holds, and one page of a board. A key
+that does not exist reads as empty, and only an unreachable or rejecting server reads as a
+failure.
+
+### Redis Query
+
+The first `IQueryStore`: one Redis read per call over the same `RedisConn` the writers use, a
+board page being a `ZCARD` and a `ZREVRANGE`. It keeps no state of its own, so every handler
+thread shares one instance and reads on its own connection.
 
 ### Result
 
@@ -177,7 +203,7 @@ sits on its own so the four services and the gateway name one type.
 
 ### Query Params
 
-The optional parameters a listing route takes — weights, sort, offset, limit — parsed off
+The optional parameters a listing route takes, weights, sort, offset and limit, parsed off
 one request, the limit clamped to a cap and anything that does not parse refused as a 400.
 Paging a listing is the same function beside it. Kept out of the handlers so the rule is
 written once and can be tested without a server.
@@ -227,12 +253,35 @@ the gateway names no backend of its own.
 
 The HTTP front of the query API: eight routes under `/query`, each one a service call sent
 back as JSON under the status it came with. It is handed the store and builds the four
-services itself, so nothing above it names them. Routes are bound in three groups —
-lookups, store reports, rankings — and the listing ones parse their parameters before the
-service sees them. It runs a listener and a thread pool of its own, one request per thread,
-so starting it returns at once. Unknown paths and handlers that throw are answered as JSON
-too, so a bad request never takes the listener down. Every answered request is logged with
-its status.
+services itself, so nothing above it names them. Routes are bound in three groups, lookups,
+store reports and rankings, and the listing ones parse their parameters before the service
+sees them. It runs a listener and a thread pool of its own, one request per thread, so
+starting it returns at once. Unknown paths and handlers that throw are answered as JSON too,
+so a bad request never takes the listener down. Every answered request is logged with its
+status.
+
+### Config
+
+Parses `config.toml` once at startup, validates it, exposes it as the global `cfg`.
+Bad config throws.
+
+### Constants
+
+The numbers and names both binaries share: batch sizes, pipeline depth, prefetch, the
+reconnect waits, and every key, field and board name the counters are written and read
+under. A name written once here is why the writer and the reader cannot drift apart, and
+why a tuned number is one line and not a search.
+
+### Logger
+
+Level-filtered logging to stderr: timestamp, colored level tag, component, message.
+Level comes from `config.toml`. Thread-safe.
+
+### Thread Pool
+
+Fixed set of worker threads over a bounded task queue. `submit()` blocks while the
+queue is full, so a fast producer is slowed down instead of piling up memory. Tasks
+that throw are logged, not fatal. Shutdown drains the queue and joins the workers.
 
 ### Mapped File
 
@@ -246,13 +295,25 @@ out in the order they were added, a field being text, a number, an array of eith
 array of objects. Names and values are escaped, so query text that came in over HTTP cannot
 break the response.
 
+### Fs
+
+The two filesystem calls the rest of the code would otherwise repeat: create a directory and
+the parents it needs, and cut a path back to its last component. Failures are logged and
+reported, never thrown, since the callers already answer for themselves.
+
+### Signal Waiter
+
+Blocks SIGINT and SIGTERM before any thread starts, so no thread of the run takes one, then
+waits for one on the main thread. Both binaries end this way: the wait returning is what
+starts an orderly shutdown, outside any signal handler.
+
 ### Python Generator
 
 The generator generates CDR records to three different destinations:
 
 1. **stdout (-p, --print)**: prints the records to the terminal
 2. **file (-f, --file)**: writes the records to a file headed by `CDR|<format>|<count>`
-3. **rabbitmw (-r, --rabbit)**: sends the records to a RabbitMQ queue
+3. **rabbit (-r, --rabbit)**: sends the records to a RabbitMQ queue
 
 
 ### UI Backend

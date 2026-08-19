@@ -18,7 +18,7 @@ link.
 
 `inc/cdr_record.hpp`.
 
-Plain struct, one record. No methods, no parsing — the reader fills it in.
+Plain struct, one record. No methods, no parsing, the reader fills it in.
 
 `UsageType` has eight values: `MOC` and `MTC` for outgoing and incoming calls,
 `SMS_MO` and `SMS_MT` for messages, `D` for data, and `U`, `B`, `X` for calls that
@@ -64,8 +64,8 @@ call and a class behind `IParser`, with nothing else to touch.
 `inc/source/icdr_source.hpp`.
 
 `ICdrSource::next()` fills a vector with the next batch and says `OK`, `DONE`, or `FAIL`.
-Where the records come from is the implementation's business, so a RabbitMQ source later
-slots in behind the same call.
+Where the records come from is the implementation's business: `FileSource` reads a mapped
+file and `RabbitSource` a queue, both behind the same call.
 
 ### File Source
 
@@ -86,9 +86,11 @@ the mapping with `memchr` looking for newlines, so a line is a `string_view` int
 mapped pages and nothing is copied until the record is built. A batch stops at
 `kFileBatchSize` records, and `DONE` comes when the file runs out.
 
-A file that will not map, or that does not start with a good header, logs a warning and
-yields no records. Bad lines inside a good file are skipped by the parser, one bad line
-does not lose the rest.
+A file that will not map, that holds no bytes, or that does not start with a good header
+logs a warning and yields no records: the first `next()` answers `FAIL`, which is what routes
+the file to the failed directory. Bad lines inside a good file are skipped by the parser, one
+bad line does not lose the rest. A file that was read logs one summary as it drains: what it
+parsed, what it rejected, and how long it took.
 
 The constructor also takes a resume sequence, 0 by default. Every parsed record whose
 sequence is at or below it is dropped before the batch is filled, so a file picked back up
@@ -125,7 +127,9 @@ quiet queue gives back `OK` with nothing instead of blocking; a `FAIL` ends the 
 
 It keeps the delivery tag of the last message it took, so one `ack(tag, true)` covers a
 whole batch once the records are safe. `stop()` sets an atomic flag: the batch in progress
-ends at the next message and every later call says `DONE`. The connection is held by
+ends at the next message and every later call says `DONE`. `RabbitIngestor` does not use it,
+it ends its own loop and drops the source, so the batch in progress is left unacked and comes
+back on the next connection. The connection is held by
 reference and outlives the source. `parsed()` and `rejected()` are the running counts, and
 the parser is built once in the constructor, which throws when the format has no parser.
 
@@ -134,8 +138,9 @@ the parser is built once in the constructor, which throws when the format has no
 `inc/ingest/iingestor.hpp`.
 
 `IIngestor::start()` begins turning delivered work into records and returns false if it
-could not begin; `stop()` ends it and joins whatever it started. Where the work comes from
-is the implementation's business, so a queue ingestor later slots in behind the same call.
+could not begin; `stop()` ends it and joins whatever it started. Where the work comes from is
+the implementation's business: `FileIngestor` drives a watched directory and `RabbitIngestor`
+a queue, both behind the same two calls.
 
 ### File Ingestor
 
@@ -152,6 +157,11 @@ A worker asks the sink where the file resumes before it opens it, keyed by the f
 name, and hands that name back with every batch. A file the watcher swept up after a
 `kill -9` is therefore read from the first record the store never saw, and the records that
 already landed are not counted twice.
+
+The pool is `source.file.readers` workers over a queue twice that size, so the feeder blocks
+on a full queue instead of claiming files it cannot yet read. `start()` also refuses to run
+when the watcher could not set up its inotify watch, and creates the done and failed
+directories before the first file needs one.
 
 A drained file is moved to the done directory, or to the failed directory when the source
 reports a failure. `stop()` wakes the watcher, joins the feeder, and drains the pool, so no
@@ -172,18 +182,34 @@ call and a class behind `IIngestor`.
 
 `inc/ingest/rabbit_ingestor.hpp`, `src/ingest/rabbit_ingestor.cpp`.
 
-`RabbitIngestor` runs `rabbit.consumers` threads over the same queue. `start()` opens one
-`RabbitConn` per consumer before any thread runs, so a broker that is down makes `start()`
-fail instead of leaving a running ingestor with nothing behind it; a connection that fails
-on its own is logged and the remaining ones still start. An unknown `source.format` fails
-`start()` first, before a socket is opened.
+`RabbitIngestor` runs `source.rabbit.consumers` threads over the same queue. An unknown
+`source.format` fails `start()` before a socket is opened. Nothing else does: `start()`
+builds one `RabbitConn` per consumer and starts the threads, and each thread connects on
+its own, so a broker that is not up yet is not a startup failure.
 
-Each thread owns its connection and a `RabbitSource` over it, and loops until the stop flag
-is set: a batch of records goes to the sink, then one `ack(last_tag, true)` covers the whole
-batch, so acking costs one round trip per batch rather than per message. A read or an ack
-that fails ends that thread and leaves the rest running; its messages are unacked, so the
-broker redelivers them. `stop()` sets the flag, joins every thread and closes the
-connections, and each thread logs what it parsed and what it rejected as it leaves.
+Each thread loops until the stop flag is set. It opens its connection, and on a failure
+waits `kRabbitBackoffMinMs` and doubles that wait on every further failure up to
+`kRabbitBackoffMaxMs`. The wait is slept in `kRabbitBackoffSliceMs` slices and checks the
+stop flag between them, so a shutdown during a backoff waits out one slice and not the whole
+delay. Only the first consumer's first failure is logged as a warning, everything after it at
+debug, so a broker that is down for a minute does not fill the log with every thread saying
+so, and the reconnect that follows logs once.
+
+With a connection up, the thread builds a `RabbitSource` over it and loops: a batch of
+records goes to the sink, then one `ack(last_tag, true)` covers the whole batch, so acking
+costs one round trip per batch rather than per message. A read or an ack that fails breaks
+the inner loop and the thread reconnects, building a fresh `RabbitSource` with it, since a
+new channel restarts the delivery tags. The batch its old connection never acked is
+redelivered. `stop()` sets the flag, joins every thread and drops the connections, and each
+thread logs its record and reject counts as it leaves.
+
+The ack is sent after the sink has written the batch, not before. That is the safe order for
+loss, and it is the reason a batch can be counted twice: if the connection dies between the
+write and the ack, the broker redelivers that batch and the aggregation adds it again.
+Delivery is at least once and the aggregator is not idempotent, so a reconnect can leave the
+counters slightly high. The file path avoids this with the progress mark, which the queue has
+no equivalent of: batches from the queue are consumed with an empty source name and nothing
+is marked.
 
 ### Dir Watcher
 
@@ -213,7 +239,7 @@ it is the one thread-safe entry point, so another thread can end the wait to shu
 `inc/aggregate/delta.hpp`.
 
 Header only, plain structs. A `Delta` is what one batch of records adds up to, held in
-three maps: `subs` by subscriber IMSI, `ops` by operator code, `links` by pair of
+three maps: `subs` by subscriber MSISDN, `ops` by operator code, `links` by pair of
 subscribers. Every counter starts at 0, so a first record can be added into a fresh entry
 without a lookup first.
 
@@ -286,10 +312,10 @@ with `redis-cli del total:proc`.
 
 `inc/aggregate/rank_writer.hpp`, `src/aggregate/rank_writer.cpp`.
 
-Turns the same folded `Delta` into board calls. A subscriber scores on four boards —
+Turns the same folded `Delta` into board calls. A subscriber scores on four boards:
 `top:voice` from its two call durations, `top:sms` from its two message counts, `top:data`
-from its two byte counters, `top:fail` from no-answer, busy and failed together — and an
-operator on `top:op-voice` and `top:op-sms`. The member is the msisdn or the mccmnc, so a
+from its two byte counters, and `top:fail` from no-answer, busy and failed together. An
+operator scores on `top:op-voice` and `top:op-sms`. The member is the msisdn or the mccmnc, so a
 board hands back the same id the lookup routes take. A score of 0 is skipped, the way a
 counter of 0 is.
 
@@ -326,6 +352,13 @@ frees it. Host, port and timeout come from `config.toml`, and the timeout covers
 connect and every command after it. It knows nothing about pipelines or commands, so a
 read side reuses it as it is.
 
+A connect that fails backs that thread off rather than retrying on every call: the first
+failure waits `kRedisBackoffMinMs`, each further one doubles up to `kRedisBackoffMaxMs`, and
+`get()` returns null until the wait is out. Nothing sleeps, the caller is refused and comes
+back later, so a store that is down costs one failed connect per backoff and not one per
+counter. The first failure is logged as an error and the rest at debug until a connect
+succeeds, which logs once and clears the backoff.
+
 ### Redis Store
 
 `inc/store/redis_store.hpp`, `src/store/redis_store.cpp`.
@@ -339,8 +372,10 @@ thread.
 Commands go out without waiting for their replies. The pipeline drains itself once it holds
 `kRedisPipelineDepth` commands, and `flush()` drains the rest, reading one reply per
 command. A reply that carries an error is counted as a failure and logged, so a rejected
-increment is not read as a write. A broken connection is dropped and opened again on the
-next call, and the commands that were queued on it are lost and reported.
+increment is not read as a write. A broken connection is dropped and the commands queued on
+it are lost, counted and logged; the next call opens a new one, or is refused while the
+connection is backing off. Either way the write returns false and the batch is reported not
+fully written.
 
 Everything between two flushes is one transaction. A `MULTI` is queued lazily, by the first
 command that follows a flush, and `flush()` closes it with an `EXEC`, so nothing above the
@@ -449,12 +484,12 @@ the four services and the gateway name one type rather than one service's nested
 
 `QueryParams` is the four optional parameters a listing route takes: `weights`, `sort`,
 `offset` and `limit`. `parseParams()` fills it from an `httplib::Request` and hands back a
-`Result` — 200 with an empty body when it parsed, 400 naming the parameter when it did not.
+`Result`: 200 with an empty body when it parsed, 400 naming the parameter when it did not.
 `weights` takes only `0` or `1`, `sort` only `dur` or `sms`, and `offset` and `limit` must
 be a whole number end to end, so `10x` is refused rather than read as 10. A request that
 names no limit is given the fallback its route passes, and a limit over the cap is clamped
-to it and reported clamped. A limit of 0 asks for every entry, which is what a direct caller
-that fills the struct itself gets.
+to it and reported clamped. A limit of 0 asks for every entry, whether it came in on the
+query string or from a caller that filled the struct itself.
 
 `page()` beside it cuts a vector to the offset and limit, empty when the offset is past the
 end. Both live here rather than in a handler so the rule is written once and can be tested
@@ -506,8 +541,8 @@ subscriber they share. One store read per subscriber expanded, and the search gi
 so a caller states the limit rather than guessing it.
 
 With `weights` it resolves the path it already holds: one `HMGET` per hop after the search,
-bounded by the hop limit. A hop that reads empty reports zeros rather than failing — the link
-exists, the search walked it. Doing it here is one pass; from a caller it is one round trip
+bounded by the hop limit. A hop that reads empty reports zeros rather than failing, since the
+link exists and the search walked it. Doing it here is one pass; from a caller it is one round trip
 per hop of a path it was just handed.
 
 ## Stats Service
@@ -529,8 +564,8 @@ run since the hash was last cleared, and nothing here invents a run identity.
 
 `inc/query/services/rank_service.hpp`, `src/query/services/rank_service.cpp`.
 
-`top()` maps a board name to its key — `voice`, `sms`, `data`, `fail`, `op-voice`, `op-sms` —
-refuses anything else with a 400, and hands the offset and limit to `IQueryStore::top()`. The
+`top()` maps a board name to its key, one of `voice`, `sms`, `data`, `fail`, `op-voice` and
+`op-sms`, refuses anything else with a 400, and hands the offset and limit to `IQueryStore::top()`. The
 store does the paging, so the cost is `O(log n + k)` and no key is scanned. The response
 carries the board, its whole cardinality, the offset and limit it was served under, and the
 page as `{ id, score }` objects. An empty board is 200 with no entries, never 404.
@@ -575,9 +610,11 @@ answered logs its method, path and status, unknown routes included.
 unreachable, 500 when a handler throws, JSON on every one. `/query/health` never 503s, and
 `/query/totals` and `/query/top` never 404.
 
-`start()` binds `query.port` and serves it on a thread of its own, so it returns as soon as
-the port is taken and false when it is not. `stop()` ends the listener and joins that thread,
-and the destructor calls it, so a gateway that goes out of scope leaves nothing running.
+The port and the host are constructor arguments, which `gateway_main` takes from
+`query.port` and `query.host`. `start()` binds them and serves on a thread of its own, so it
+returns as soon as the port is taken and false when it is not. A port of 0 binds any free one
+and `port()` reports which. `stop()` ends the listener and joins that thread, and the
+destructor calls it, so a gateway that goes out of scope leaves nothing running.
 Requests are served by a thread pool of `query.concurrency` threads, one request at a
 time each, and the store gives every thread its own connection, so nothing is locked between
 handlers. The response body is moved into the response, so a query costs its store reads and
@@ -597,6 +634,32 @@ settings as `cfg.rabbit.url`.
 
 Bad values throw and stop the program at startup.
 
+## Constants
+
+`inc/constants.hpp`.
+
+Header only, one `inline constexpr` per name, no namespace: everything both binaries agree
+on that is not worth a config key. Four kinds of thing live here.
+
+The sizes: `kBatchSize` is 4096 records, which `kFileBatchSize` and `kRabbitBatchSize` both
+take, so a file batch and a queue batch cost the store the same. `kRabbitPrefetch` is two
+batches, so a consumer always has the next batch in hand while it writes the current one,
+and a static assert keeps it inside the `uint16_t` the AMQP field is. `kRedisPipelineDepth`
+is 1024 commands between drains.
+
+The waits: `kRedisBackoffMinMs` to `kRedisBackoffMaxMs` for a store that is down,
+`kRabbitBackoffMinMs` to `kRabbitBackoffMaxMs` for a broker that is, and
+`kRabbitBackoffSliceMs` for how long a backoff may delay a stop.
+
+The names: `sub:`, `op:`, `link:`, the six `top:` boards, `total:proc`, `prog:file`, the
+counter fields and the field suffixes, and the names those counters go out under in JSON.
+The writer and the reader take the same constant, which is what keeps a rename from turning
+into a key that nothing reads.
+
+The rest: the record field count the parser splits on, the default and maximum page sizes
+the listing routes clamp to, and `kMsinDivisor`, the power of ten that strips the MSIN off an
+IMSI and leaves the MCCMNC.
+
 ## Logger
 
 `inc/logger.hpp`, `src/logger.cpp`.
@@ -607,11 +670,13 @@ level is dropped, and `None` drops everything. The level comes from `cfg.log.lev
 Each line looks like:
 
 ```
-YYYY-MM-DD HH:MM:SS [LEVEL] message
+MM-DD HH:MM:SS [LEVEL] [Component] -> message
 ```
 
 The time is gray and the level tag is colored: gray debug, green info, yellow warn,
-red error. Write logs with `logDebug`, `logInfo`, `logWarn`, `logError`.
+red error. The component is the name the caller passed, one constant per translation unit,
+which is what makes a line traceable to the class that wrote it. Write logs with `logDebug`,
+`logInfo`, `logWarn`, `logError`.
 
 Output goes to stderr. A mutex keeps lines from mixing when threads log at once.
 
@@ -677,6 +742,37 @@ backslashes and control characters, so text that came in over HTTP cannot break 
 That is one pass over the bytes per string; other bytes are copied as they are. Nothing is
 parsed and nothing is validated, so a caller that adds the same name twice writes it twice.
 
+## Fs
+
+`inc/util/fs.hpp`, `src/util/fs.cpp`.
+
+Two free functions, no class and no state. `ensure_dir()` creates a directory and the parents
+it needs and returns whether it exists afterwards, so a path that was already there is a
+success and not a no-op to check for. A failure is logged with the path and reported, never
+thrown: the callers are the watcher and the ingestor, which answer for a missing directory by
+refusing to start. `basename_of()` cuts a path back to the text after the last `/`, or hands
+back the path when it holds none. That is what names a source: the ingestor keys the sink's
+progress by a file's own name and not by the directory it happens to sit in, so a file that
+moves between ready, processing and done is the same source throughout.
+
+## Signal Waiter
+
+`inc/util/signal_waiter.hpp`, `src/util/signal_waiter.cpp`.
+
+`SIGINT` and `SIGTERM` are blocked in the constructor with `pthread_sigmask`, before either
+main starts anything. A thread inherits the mask of the thread that started it, so every
+worker started later is born with both blocked and neither can be delivered to it. That
+leaves the signal pending for `wait()`, which is a `sigwait` on the same mask, retried when
+the wait itself is interrupted.
+
+The point is what the caller may then do. `wait()` returns on the main thread and outside any
+handler, so the shutdown that follows can log, take locks, join threads and flush the store,
+none of which is safe inside a signal handler. The destructor puts the previous mask back,
+which is what lets a test construct one and leave the process as it found it.
+
+Both mains hold one for the length of the run: the processor waits, stops the ingestor and
+logs the run's totals; the gateway waits, logs the signal number and stops the listener.
+
 ## UI Backend
 
 `ui/api/`. FastAPI, uvicorn, httpx, sqlite3. Modules are imported by plain name, so the
@@ -739,7 +835,7 @@ failure. Retention is swept once a day off the same tick. SQLite writes go throu
 `ui/api/config_file.py`.
 
 Reads `config.toml` twice over: `tomllib` for the values, and a line scan for the shape the
-config screen shows — sections in file order, the comment block written above each one as its
+config screen shows: sections in file order, the comment block written above each one as its
 help, and the trailing comment on each key. Banner rules reset the block, so a section carries
 its own prose and not the file header's. `source.mode`, `source.format` and `store.type` say
 which sections are live; the rest are marked inactive with the setting that turned them off.
@@ -765,8 +861,8 @@ graph library is vendored.
 `ApiError` carrying the status. That status is what the screens render on: 502 the gateway is
 down, 503 the store is, 504 a search timed out, 404 never seen. The three failures never
 render alike. `lib/format.ts` is the only place seconds, bytes, counts and shares are
-formatted. `lib/settings.ts` holds the browser's settings — theme, refresh, default window,
-peer page, board page, expand limit, canvas cap, edge metric — in local storage behind
+formatted. `lib/settings.ts` holds the browser's settings, theme, refresh, default window,
+peer page, board page, expand limit, canvas cap and edge metric, in local storage behind
 `useSyncExternalStore`, and `lib/history.ts` holds recent lookups the same way. Routing is the
 URL hash, so a screen is a link and the static mount needs no fallback.
 
