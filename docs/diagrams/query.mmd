@@ -37,11 +37,21 @@ classDiagram
         +body : std::string
         +status : int
     }
-    class C_0007472519213590589183["::httplib::Request"]
-    class C_0007472519213590589183 {
+    class C_0013169109224289640608["PathService"]
+    class C_0013169109224289640608 {
+        +PathService(const IQueryStore & store) void
+        -found(const std::vector&lt;std::string&gt; & route, bool weights) [const] Result
+        -hops(const std::vector&lt;std::string&gt; & route, std::vector&lt;Json&gt; & out) [const] bool
+        -notFound() std::string$
+        +path(std::string_view first, std::string_view second, bool weights) [const] Result
+        -walk(const Trail & head, const Trail & tail, const std::string & meet) std::vector&lt;std::string&gt;$
+        -m_store : const IQueryStore &
     }
     class C_0000867282091731240055["::httplib::Server"]
     class C_0000867282091731240055 {
+    }
+    class C_0007472519213590589183["::httplib::Request"]
+    class C_0007472519213590589183 {
     }
     class C_0014580811032731177816["Sort"]
     class C_0014580811032731177816 {
@@ -55,22 +65,6 @@ classDiagram
         +offset : std::size_t
         +sort : Sort
         +weights : bool
-    }
-    class C_0013335459426770781440["Peer"]
-    class C_0013335459426770781440 {
-        +duration : uint64_t
-        +msisdn : std::string
-        +sms : uint64_t
-    }
-    class C_0013169109224289640608["PathService"]
-    class C_0013169109224289640608 {
-        +PathService(const IQueryStore & store) void
-        -found(const std::vector&lt;std::string&gt; & route, bool weights) [const] Result
-        -hops(const std::vector&lt;std::string&gt; & route, std::vector&lt;Json&gt; & out) [const] bool
-        -notFound() std::string$
-        +path(std::string_view first, std::string_view second, bool weights) [const] Result
-        -walk(const Trail & head, const Trail & tail, const std::string & meet) std::vector&lt;std::string&gt;$
-        -m_store : const IQueryStore &
     }
     class C_0006341152374390112720["QueryService"]
     class C_0006341152374390112720 {
@@ -115,12 +109,19 @@ classDiagram
         -m_service : const QueryService
         -m_stats : const StatsService
     }
+    class C_0013335459426770781440["Peer"]
+    class C_0013335459426770781440 {
+        +calls : uint64_t
+        +duration : uint64_t
+        +msisdn : std::string
+        +sms : uint64_t
+    }
     C_0000446428521560048476 ..> C_0016825886504236010012 : 
     C_0000446428521560048476 ..> C_0016825886504236010012 : -m_queries
     C_0016825886504236010012 <|-- C_0007436692389984772457 : 
-    C_0014031600252442648652 o-- C_0014580811032731177816 : +sort
     C_0013169109224289640608 ..> C_0006064563654502160722 : 
     C_0013169109224289640608 --> C_0016825886504236010012 : -m_store
+    C_0014031600252442648652 o-- C_0014580811032731177816 : +sort
     C_0006341152374390112720 ..> C_0006064563654502160722 : 
     C_0006341152374390112720 ..> C_0014031600252442648652 : 
     C_0006341152374390112720 --> C_0016825886504236010012 : -m_store

@@ -90,14 +90,14 @@ graph, REST query API.
 
 ## Phase 7 - Hardening & Deliverables
 
-- [ ] Reconnect with backoff
-- [ ] Pipeline depth and batch size benchmarked
-- [ ] `perf` for hotspots, massif for allocation churn
-- [ ] ASan, TSan and UBSan clean
-- [ ] Throughput measured and written down
-- [ ] Unit tests on every module
-- [ ] HLD block diagram, DLD class and sequence diagrams
-- [ ] README - build, configure, operate
+- [x] Reconnect with backoff
+- [x] Pipeline depth and batch size benchmarked
+- [x] `perf` for hotspots, massif for allocation churn
+- [x] ASan, TSan and UBSan clean
+- [x] Throughput measured and written down
+- [x] Unit tests on every module
+- [x] HLD block diagram, DLD class and sequence diagrams
+- [x] README - build, configure, operate
 
 ---
 

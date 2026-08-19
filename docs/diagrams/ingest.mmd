@@ -34,14 +34,23 @@ classDiagram
         -m_target_dir : std::string
         -m_wd : int
     }
+    class C_0015825849209398321221["FileDirs"]
+    class C_0015825849209398321221 {
+        +done : std::string
+        +fail : std::string
+        +process : std::string
+        +ready : std::string
+    }
     class C_0015551976288975165073["FileIngestor"]
     class C_0015551976288975165073 {
         +FileIngestor(ISink & sink) void
+        +FileIngestor(ISink & sink, const FileDirs & dirs) void
         -dispose(const std::string & file_path, bool ok) void
         -feed() void
         -process(const std::string & file_path) void
         +start() bool
         +stop() void
+        -m_dirs : FileDirs
         -m_feeder : std::thread
         -m_format : std::string
         -m_parser : std::unique_ptr&lt;IParser&gt;
@@ -54,6 +63,7 @@ classDiagram
     class C_0016309531056379409339["RabbitIngestor"]
     class C_0016309531056379409339 {
         +RabbitIngestor(ISink & sink) void
+        -backoff(unsigned int delay_ms) void
         -consume(std::size_t id) void
         +start() bool
         +stop() void
@@ -66,6 +76,7 @@ classDiagram
     }
     C_0014691924432592965580 ..> C_0005204266784183112504 : 
     C_0014691924432592965580 ..> C_0005204266784183112504 : -m_ingestors
+    C_0015551976288975165073 o-- C_0015825849209398321221 : -m_dirs
     C_0015551976288975165073 o-- C_0009913003735889727705 : -m_watcher
     C_0005204266784183112504 <|-- C_0015551976288975165073 : 
     C_0005204266784183112504 <|-- C_0016309531056379409339 : 

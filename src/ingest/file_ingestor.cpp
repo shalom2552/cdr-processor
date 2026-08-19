@@ -18,10 +18,16 @@ constexpr std::string_view kComponent = "FileIngestor";
 namespace cdrp {
 
 FileIngestor::FileIngestor(ISink& sink)
+    : FileIngestor(sink, FileDirs { cfg.file.ready_dir, cfg.file.process_dir, cfg.file.done_dir, cfg.file.fail_dir })
+{
+}
+
+FileIngestor::FileIngestor(ISink& sink, const FileDirs& dirs)
     : m_sink(sink)
     , m_format(cfg.source.format)
+    , m_dirs(dirs)
     , m_parser(ParserFactory::instance().createParser(m_format))
-    , m_watcher(cfg.file.ready_dir, cfg.file.process_dir)
+    , m_watcher(m_dirs.ready, m_dirs.process)
     , m_thread_pool(std::make_unique<ThreadPool>(cfg.file.readers, 2 * cfg.file.readers))
 {
 }
@@ -47,7 +53,7 @@ bool FileIngestor::start()
         return false;
     }
 
-    if (!ensure_dir(cfg.file.done_dir) || !ensure_dir(cfg.file.fail_dir)) {
+    if (!ensure_dir(m_dirs.done) || !ensure_dir(m_dirs.fail)) {
         return false;
     }
 
@@ -111,7 +117,7 @@ void FileIngestor::process(const std::string& file_path)
 
 void FileIngestor::dispose(const std::string& file_path, bool ok)
 {
-    const std::string dest = (ok ? cfg.file.done_dir : cfg.file.fail_dir) + basename_of(file_path);
+    const std::string dest = (ok ? m_dirs.done : m_dirs.fail) + basename_of(file_path);
 
     if (!ok) {
         logWarn(kComponent, "file failed, routed to failed dir: " + basename_of(file_path));

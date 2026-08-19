@@ -13,6 +13,14 @@
 
 namespace cdrp {
 
+/* The four directories a file moves through, each ending with a separator */
+struct FileDirs {
+    std::string ready;
+    std::string process;
+    std::string done;
+    std::string fail;
+};
+
 /*
  * Watches the ready directory and turns each delivered file into records.
  * A feeder thread claims files; a thread pool parses them and feeds the sink.
@@ -20,6 +28,10 @@ namespace cdrp {
 class FileIngestor : public IIngestor {
 public:
     FileIngestor(ISink& sink);
+
+    /* Constructor, takes the directories instead of reading them from the config */
+    FileIngestor(ISink& sink, const FileDirs& dirs);
+
     ~FileIngestor() override;
 
     /* Starts the feeder and workers. False if the format has no parser or the
@@ -37,6 +49,7 @@ private:
 private:
     ISink& m_sink;
     std::string m_format;
+    FileDirs m_dirs;
 
     std::unique_ptr<IParser> m_parser;
     DirWatcher m_watcher;

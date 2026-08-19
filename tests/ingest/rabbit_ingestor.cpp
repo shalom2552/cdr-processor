@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <mutex>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -160,6 +161,21 @@ TEST_CASE("rabbit_ingestor_is_usable_through_the_iingestor_interface")
     });
 
     CHECK(elapsed < kTimeoutMs);
+}
+
+TEST_CASE("rabbit_ingestor_starts_without_a_broker_and_stops_while_backing_off")
+{
+    CountingSink sink;
+    RabbitIngestor ingestor(sink);
+
+    CHECK(ingestor.start());
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+    const long long elapsed = millisOf([&] { ingestor.stop(); });
+
+    CHECK(elapsed < kTimeoutMs);
+    CHECK(sink.count() == 0);
 }
 
 TEST_CASE("rabbit_ingestor_feeds_the_sink_nothing_before_it_starts")

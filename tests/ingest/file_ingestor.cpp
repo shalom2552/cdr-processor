@@ -2,7 +2,6 @@
 #include "ingest/file_ingestor.hpp"
 #include "ingest/iingestor.hpp"
 #include "sink/isink.hpp"
-#include "config.hpp"
 
 #include <chrono>
 #include <condition_variable>
@@ -67,60 +66,66 @@ private:
 };
 
 /*
- * Owns the configured ready/process/done/failed dirs and a staging dir, and removes
- * every file it delivers when the test ends. The ingestor reads these paths from cfg,
- * so the test can only use the real configured directories.
+ * Owns a private ready/process/done/failed set under a temp root, and a staging dir
+ * to deliver from. The ingestor takes these paths, so a test never reads or moves
+ * anything in the configured directories. The root is removed when the test ends.
  */
 class IngestFixture {
 public:
     IngestFixture()
+        : m_root(fs::path(".cdrp_ingest_test") / std::to_string(++s_id))
     {
-        for (const std::string& dir : { cdrp::cfg.file.ready_dir, cdrp::cfg.file.process_dir,
-                                        cdrp::cfg.file.done_dir, cdrp::cfg.file.fail_dir }) {
+        m_dirs.ready = (m_root / "ready").string() + "/";
+        m_dirs.process = (m_root / "process").string() + "/";
+        m_dirs.done = (m_root / "done").string() + "/";
+        m_dirs.fail = (m_root / "failed").string() + "/";
+
+        for (const std::string& dir : { m_dirs.ready, m_dirs.process, m_dirs.done, m_dirs.fail }) {
             fs::create_directories(dir);
         }
-        fs::create_directories(m_staging);
+        fs::create_directories(m_root / "staging");
     }
 
     ~IngestFixture()
     {
         std::error_code ec;
-        for (const std::string& name : m_delivered) {
-            for (const std::string& dir : { cdrp::cfg.file.ready_dir, cdrp::cfg.file.process_dir,
-                                            cdrp::cfg.file.done_dir, cdrp::cfg.file.fail_dir }) {
-                fs::remove(fs::path(dir) / name, ec);
-            }
-        }
-        fs::remove_all(m_staging, ec);
+        fs::remove_all(m_root, ec);
+        fs::remove(m_root.parent_path(), ec);
     }
 
-    /* Writes a file into ready_dir directly, before the ingestor is constructed */
+    /* The directories to hand the ingestor */
+    const cdrp::FileDirs& dirs() const
+    {
+        return m_dirs;
+    }
+
+    /* Writes a file into the ready dir directly, before the ingestor is constructed */
     void place(const std::string& name, const std::string& text)
     {
-        m_delivered.insert(name);
-        std::ofstream out(fs::path(cdrp::cfg.file.ready_dir) / name, std::ios::binary);
+        std::ofstream out(m_dirs.ready + name, std::ios::binary);
         out << text;
     }
 
     /* Delivers a file by rename, the way a real sender does, after the ingestor started */
     void deliver(const std::string& name, const std::string& text)
     {
-        m_delivered.insert(name);
-        const fs::path staged = m_staging / name;
+        const fs::path staged = m_root / "staging" / name;
         std::ofstream out(staged, std::ios::binary);
         out << text;
         out.close();
-        fs::rename(staged, fs::path(cdrp::cfg.file.ready_dir) / name);
+        fs::rename(staged, m_dirs.ready + name);
     }
 
     bool inDone(const std::string& name) const
     {
-        return fs::exists(fs::path(cdrp::cfg.file.done_dir) / name);
+        return fs::exists(m_dirs.done + name);
     }
 
 private:
-    fs::path m_staging = fs::path(".cdrp_ingest_test_stage");
-    std::set<std::string> m_delivered;
+    static inline int s_id = 0;
+
+    fs::path m_root;
+    cdrp::FileDirs m_dirs;
 };
 
 /* One well formed csv record, sequence sets it apart from its neighbours */
@@ -152,16 +157,18 @@ TEST_CASE("file_ingestor_is_neither_copyable_nor_copy_assignable")
 
 TEST_CASE("file_ingestor_constructs_and_destructs_without_starting")
 {
+    IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     CHECK(sink.count() == 0);
 }
 
 TEST_CASE("file_ingestor_stop_is_safe_without_a_start")
 {
+    IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     ingestor.stop();
 
@@ -172,7 +179,7 @@ TEST_CASE("file_ingestor_start_returns_true_and_is_idempotent")
 {
     IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     CHECK(ingestor.start());
     CHECK(ingestor.start());
@@ -184,7 +191,7 @@ TEST_CASE("file_ingestor_is_usable_through_the_iingestor_interface")
 {
     IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor concrete(sink);
+    FileIngestor concrete(sink, dirs.dirs());
     IIngestor& ingestor = concrete;
 
     CHECK(ingestor.start());
@@ -195,7 +202,7 @@ TEST_CASE("file_ingestor_processes_a_file_delivered_after_it_starts")
 {
     IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     REQUIRE(ingestor.start());
     dirs.deliver("delivered.cdr", fileWith(1000, 3));
@@ -215,7 +222,7 @@ TEST_CASE("file_ingestor_processes_a_file_already_present_before_it_starts")
     dirs.place("present.cdr", fileWith(2000, 2));
 
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     REQUIRE(ingestor.start());
     REQUIRE(sink.waitFor(2));
@@ -230,7 +237,7 @@ TEST_CASE("file_ingestor_processes_several_files")
 {
     IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     REQUIRE(ingestor.start());
     dirs.deliver("first.cdr", fileWith(3000, 4));
@@ -249,7 +256,7 @@ TEST_CASE("file_ingestor_disposes_a_header_only_file_without_emitting_records")
 {
     IngestFixture dirs;
     RecordingSink sink;
-    FileIngestor ingestor(sink);
+    FileIngestor ingestor(sink, dirs.dirs());
 
     REQUIRE(ingestor.start());
     dirs.deliver("empty.cdr", "CDR|csv|0\n");
